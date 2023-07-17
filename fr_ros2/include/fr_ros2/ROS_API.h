@@ -4,7 +4,6 @@
 #include "stdlib.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/service.hpp"
-#include "std_msgs/msg/string.hpp"
 #include "frhal_msgs/srv/ros_cmd_interface.hpp"
 #include "mutex"
 #include "sys/socket.h"
@@ -85,7 +84,9 @@ public:
     int  Circle(std::string para);
     //int  NewSpiral(std::string para);
     //int  ServoJ(JointPos *joint_pos, float acc, float vel, float cmdT, float filterT, float gain);
-    //int  ServoCart(int mode, DescPose *desc_pose, float pos_gain[6], float acc, float vel, float cmdT, float filterT, float gain);
+    int  ServoJTStart(std::string para);
+    int  ServoJT(std::string para);
+    int  ServoJTEnd(std::string para);
     int  SplineStart(std::string para);
     int  SplinePTP(std::string para);
     int  SplineEnd(std::string para);
@@ -95,6 +96,9 @@ public:
     int  StopMotion(std::string para);
     int  PointsOffsetEnable(std::string para);
     int  PointsOffsetDisable(std::string para);
+
+    //程序控制
+    int ProgramRun(std::string para);
 
 private:
     int (ROS_API:: *funcP)(std::string para);//函数指针是有作用域的，所以全局函数的指针和类内成员函数的指针定义有很大不同，这里不能用typedef
@@ -106,10 +110,7 @@ private:
     int _def_jnt_position(std::string pos);
     int _def_cart_position(std::string pos);
     std::string _get_variable(std::string para_list);
-    int _retry_count;//重试次数
     uint16_t _cmd_counter;//指令数据帧计数器
-    std::string _cur_func_name;
-    int _cur_id;
     int _recv_data_cmdcount;//接受到的回复信息中指令计数器的值
     int _recv_data_cmdid;//接受到的回复信息中指令id
     int _recv_data_res;//接受到的回复信息中指令反馈结果
@@ -124,7 +125,7 @@ private:
     int port2 = 8082;//脚本传输和自定义数据流发送端口
     int _socketfd1, _socketfd2;
     rclcpp::TimerBase::SharedPtr _locktimer;
-
+    bool _skip_answer_flag;
 };
 
 

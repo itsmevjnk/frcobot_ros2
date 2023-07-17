@@ -39,6 +39,10 @@ std::map<std::string,int>& glob_FR_cmd_id(){
     {"MoveJ",201},
     {"MoveL",203},
     {"MoveC",202},
+    {"ServoJ",376},
+    {"ServoJTStart",735},
+    {"ServoJT",736},
+    {"ServoJTEnd",737},
     {"Circle",540},
     {"NewSpiral",577},
     {"SplineStart",346},
@@ -49,7 +53,8 @@ std::map<std::string,int>& glob_FR_cmd_id(){
     {"NewSplineEnd",554},
     {"StopMotion",102},
     {"PointsOffsetEnable",718},
-    {"PointsOffsetDisable",719}//运动指令
+    {"PointsOffsetDisable",719},//运动指令
+    {"ProgramRun",101}
 };
     return tmp;
 }

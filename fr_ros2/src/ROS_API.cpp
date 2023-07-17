@@ -41,8 +41,8 @@ ROS_API::ROS_API(const std::string node_name):FRAPI_base(),rclcpp::Node(node_nam
 {
     using namespace std::chrono_literals;
     _cmd_counter = 0;
-    _retry_count = 10;//初始化指令反馈接收重试次数
     _recv_data_cmdcount = 0;
+    _skip_answer_flag = 0;
     this->declare_parameter<uint8_t>("toolcoord_install",0);//默认工具安装在机器人末端
     this->declare_parameter<uint8_t>("toolcoord_type",0);//默认是工具坐标系
     this->declare_parameter<uint8_t>("collision_mode",0);//碰撞等级模式，默认是等级
@@ -56,7 +56,7 @@ ROS_API::ROS_API(const std::string node_name):FRAPI_base(),rclcpp::Node(node_nam
     this->declare_parameter<uint8_t>("AO_block",1);//默认AO非阻塞
     this->declare_parameter<uint8_t>("JOG_acc",40);//JOG默认加速度40
     this->declare_parameter<int>("JOG_maxdis",5);//JOG默认单步5mm
-    this->declare_parameter<int>("MoveJLC_tool",1);
+    this->declare_parameter<int>("MoveJLC_tool",0);
     this->declare_parameter<int>("MoveJLC_user",0);
     this->declare_parameter<float>("MoveJLC_acc",0);
     this->declare_parameter<float>("MoveJLC_ovl",100);
@@ -80,6 +80,7 @@ ROS_API::ROS_API(const std::string node_name):FRAPI_base(),rclcpp::Node(node_nam
     this->declare_parameter<float>("Spline_acc",0);
     this->declare_parameter<float>("Spline_ovl",100);
     this->declare_parameter<float>("NewSpline_blendR",10);
+    this->declare_parameter<float>("ServoJT_timeinterval",0.008);
 
     _recv_ros_command_server = this->create_service<frhal_msgs::srv::ROSCmdInterface>(
         "FR_ROS_API_service",
@@ -200,6 +201,12 @@ void ROS_API::_selectfunc(std::string func_name){
         funcP = &ROS_API::MoveL;
     }else if(func_name == "MoveC"){
         funcP = &ROS_API::MoveC;
+    }else if(func_name == "ServoJTStart"){
+        funcP = &ROS_API::ServoJTStart;
+    }else if(func_name == "ServoJT"){
+        funcP = &ROS_API::ServoJT;
+    }else if(func_name == "ServoJTEnd"){
+        funcP = &ROS_API::ServoJTEnd;
     }else if(func_name == "Circle"){
         funcP = &ROS_API::Circle;
     }else if(func_name == "NewSpiral"){
@@ -222,6 +229,8 @@ void ROS_API::_selectfunc(std::string func_name){
         funcP = &ROS_API::PointsOffsetEnable;
     }else if(func_name == "PointsOffsetDisable"){
         funcP = &ROS_API::PointsOffsetDisable;
+    }else if(func_name == "ProgramRun"){
+        funcP = &ROS_API::ProgramRun;
     }else{
         funcP = NULL;
     }
@@ -230,12 +239,11 @@ void ROS_API::_selectfunc(std::string func_name){
 int ROS_API::_send_data_factory_callback(std::string data){
     using namespace std::chrono_literals;
     static char recv_buff[128];
-    int cnt = 0;
     //std::cout << "发送指令信息..." << data << std::endl;
     send(_socketfd1,data.c_str(),data.size(),0);//发送指令信息
     //std::cout << "发送指令成功!" << std::endl;
     memset(recv_buff,0,sizeof(recv_buff));
-    //while(cnt < _retry_count){
+    if(!_skip_answer_flag) {//针对servoJT指令，不需要看反馈值直接发送
         rclcpp::sleep_for(30ms);
         if(recv(_socketfd1,recv_buff,sizeof(recv_buff),0) > -1){
             //std::cout << "收到指令回复信息..." << std::string(recv_buff) << std::endl;
@@ -252,8 +260,10 @@ int ROS_API::_send_data_factory_callback(std::string data){
                 }
             }
         }
-        cnt++;
-    //}
+    }else{
+        _skip_answer_flag = 0;
+        return 0;
+    }
     //std::cout << "接受指令反馈超时" << std::endl;
 }
 
@@ -280,7 +290,7 @@ int ROS_API::_ParseRecvData(std::string str){
             }
             return 1;
         }else{//一般控制指令的反馈信息,单一int型
-            _recv_data_res = atol(data_match[4].str().c_str());
+            _recv_data_res = atoi(data_match[4].str().c_str());
             return 1;
         }
         //_mtx.unlock();
@@ -722,6 +732,9 @@ int ROS_API::MoveJ(std::string para){
                    + offset_pos_ry + "," + offset_pos_rz;
             // std::string tmp_para = FRAPI_base::command_factry("MoveJ",1,para);
             // std::cout << "MoveJ发送数据: " << tmp_para << std::endl;
+            if(blendT == "-1"){
+                
+            }
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveJ",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveJ指令调用正向运动学发生错误" << std::endl;
@@ -1041,6 +1054,27 @@ int ROS_API::Circle(std::string para){
 //     return -1;
 // }
 
+int ROS_API::ServoJTStart(std::string para){
+    para.clear();
+    return _send_data_factory_callback(FRAPI_base::command_factry("ServoJTStart",++_cmd_counter,para));
+}
+
+
+int ROS_API::ServoJT(std::string para){
+    //{double tor1-tor6}, double interval
+    std::string time_interval = this->get_parameter("ServoJT_timeinterval").value_to_string();
+    para = "{" + para + "}," + "0.008"; 
+    _skip_answer_flag = 1;
+    return _send_data_factory_callback(FRAPI_base::command_factry("ServoJT",++_cmd_counter,para));
+}
+
+
+int ROS_API::ServoJTEnd(std::string para){
+    para.clear();
+    return _send_data_factory_callback(FRAPI_base::command_factry("ServoJTEnd",++_cmd_counter,para));
+}
+
+
 
 int ROS_API::SplineStart(std::string para){
     //empty para
@@ -1189,4 +1223,11 @@ int ROS_API::PointsOffsetEnable(std::string para){
 int ROS_API::PointsOffsetDisable(std::string para){
     //empty para
     return _send_data_factory_callback(FRAPI_base::command_factry("PointsOffsetDisable",++_cmd_counter,para));
+}
+
+
+int ROS_API::ProgramRun(std::string para){
+    //empty para
+    para.clear();
+    return _send_data_factory_callback(FRAPI_base::command_factry("ProgramRun",++_cmd_counter,para));
 }
