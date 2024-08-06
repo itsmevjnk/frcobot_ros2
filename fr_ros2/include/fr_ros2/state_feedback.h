@@ -12,6 +12,8 @@
 #include "data_type_def.h"
 #include "frhal_msgs/msg/fr_state.hpp"
 
+#define STATEBUFFSIZE sizeof(FR_nonrt_state)
+
 class state_recv_thread:public rclcpp::Node{//接受非实时和实时反馈数据的节点
 public:
     explicit state_recv_thread(const std::string node_name);

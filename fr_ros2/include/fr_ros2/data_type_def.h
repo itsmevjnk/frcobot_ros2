@@ -4,6 +4,22 @@
 #include "string"
 
 #pragma pack(1)
+typedef struct _EXTERNALAXIS_STATUS{
+    double exaxis_pos_back;
+    double exaxis_speed_back;
+    int exaxis_error_code;
+    uint8_t exaxis_rdy;
+    uint8_t exaxis_inpos;
+    uint8_t exaxis_alm;
+    uint8_t exaxis_flerr;
+    uint8_t exaxis_nlimit;
+    uint8_t exaxis_plimit;
+    uint8_t exaxis_absofln;
+    uint8_t exaxis_oflin;
+    uint8_t exaxis_home_status;
+}EXTERNALAXIS_STATUS;
+
+
 typedef struct _FR_nonrt_state{
     uint16_t head;
     uint8_t count;
@@ -49,6 +65,16 @@ typedef struct _FR_nonrt_state{
     uint8_t EMG;
     int robot_motion_done;
     uint8_t grip_motion_done;
+    uint8_t servo_id;
+    int32_t servo_errorode;
+    int32_t servo_state;
+    double servo_actual_pos;
+    float servo_actual_speed;
+    float servo_actual_torque;
+    uint8_t exaxis_out_slimit_error;
+    EXTERNALAXIS_STATUS exaxis_status[4];
+    uint8_t exaxis_active_flag;
+    uint8_t exaxis_motion_status;
     uint16_t check_sum;
 }FR_nonrt_state;
 

@@ -48,7 +48,7 @@ state_recv_thread::~state_recv_thread(){
 }
 
 void state_recv_thread::_state_recv_callback(){
-    static char recv_buff[241];
+    static char recv_buff[STATEBUFFSIZE];
     static FR_nonrt_state state_data;
     memset(recv_buff,0,sizeof(recv_buff));
     if(recv(_socketfd1,recv_buff,sizeof(recv_buff),0) > -1){
