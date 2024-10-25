@@ -2,6 +2,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+// #include "/usr/include/c++/11/bits/regex.h"
+#include <regex>
+#include <stdlib.h>
+// #include "std/string.hpp"
+
 std::mutex _reconnect_mutex;
 
 #define LOSE_TCP_CONNECT_TIME_MAX 10
@@ -26,32 +31,27 @@ std::string FRAPI_base::command_factry(std::string name, uint16_t counter, std::
     std::string cmd_data;
     auto iter_cmd =  _fr_command_id.find(name);//在命令列表里面找
     auto iter_script = _fr_script_id.find(name);//在脚本指令列表里面找 
-    auto iter_get = _fr_get_id.find(name);//在get指令列表里找
+    // auto iter_get = _fr_get_id.find(name);//在get指令列表里找
 
-    if(iter_cmd == _fr_command_id.end() && iter_get == _fr_get_id.end()&& iter_script != _fr_script_id.end())
+    if(iter_cmd == _fr_command_id.end() && iter_script != _fr_script_id.end())
     {//在命令列表和get列表里没找到在脚本指令中找到了
         cmd_id = std::to_string(iter_script->second);//枚举类本质是int型数据,因此需要转换成字符串
         cmd_data = data;//脚本命令内容赋值
     }
-    else if(iter_cmd != _fr_command_id.end()&& iter_get == _fr_get_id.end()&& iter_script == _fr_script_id.end())
+    else if(iter_cmd != _fr_command_id.end()&& iter_script == _fr_script_id.end())
     {//在命令列表里面找到了在脚本指令和get列表中没找到
         cmd_id = std::to_string(iter_cmd->second);//枚举类本质是int型数据,因此需要转换成字符串
         cmd_data = name + "(" + data + ")";//指令数据转成string  
     }
-    else if(iter_cmd == _fr_command_id.end()&& iter_get != _fr_get_id.end()&& iter_script == _fr_script_id.end())
-    {//在get列表里面找到了在脚本指令和命令列表中没找到
-        cmd_id = std::to_string(iter_get->second);//枚举类本质是int型数据,因此需要转换成字符串
-        cmd_data = name + "(" + data + ")";//指令数据转成string  
-    }
-    else if(iter_cmd == _fr_command_id.end() && iter_get == _fr_get_id.end()&& iter_script == _fr_script_id.end())
-    {//两个里面都没找到，说明是运动学接口，不合法的错误函数名称在前面的函数已经被过滤了
-        if(name == "GetInverseKin"){
-            cmd_id = "377";
-        }else if(name == "GetForwardKin"){
-            cmd_id = "377";
-        }
-        cmd_data = name + "(" + data + ")";//指令数据转成string
-    }
+    // else if(iter_cmd == _fr_command_id.end() && iter_script == _fr_script_id.end())
+    // {//两个里面都没找到，说明是运动学接口，不合法的错误函数名称在前面的函数已经被过滤了
+    //     if(name == "GetInverseKin"){
+    //         cmd_id = "377";
+    //     }else if(name == "GetForwardKin"){
+    //         cmd_id = "377";
+    //     }
+    //     cmd_data = name + "(" + data + ")";//指令数据转成string
+    // }
     std::string cmd_len = std::to_string(cmd_data.size());//size返回字符串长度,类型是uint,需要转换成字符串
     std::string cmd_counter = std::to_string(counter);
     cmd_send = _cmd_head + _cmd_interval + cmd_counter + _cmd_interval + cmd_id 
@@ -233,7 +233,7 @@ robot_command_thread::~robot_command_thread()
     }
 }
 
-int robot_command_thread::_send_data_factory_callback(std::string data)
+std::string robot_command_thread::_send_data_factory_callback(std::string data)
 {
     static char recv_buff[RECV_BUFF];
     std::cout << "发送指令信息..." << data << std::endl;
@@ -245,17 +245,18 @@ int robot_command_thread::_send_data_factory_callback(std::string data)
     if (recv_bytes > 0)
     {
         std::cout << "收到指令回复信息..." << std::string(recv_buff) << std::endl;
-        if (_ParseRecvData(std::string(recv_buff)))
+        std::cout << _ParseRecvData(std::string(recv_buff)) << std::endl;
+        if (_ParseRecvData(std::string(recv_buff))!="0")
         {
             if (_recv_data_cmdid == 377)
             {
                 // std::cout << "运动学接口返回参数" << std::endl;
-                return -2001;
+                return std::to_string(-2001);
             }
             else if (_recv_data_cmdcount == _cmd_counter) // id和帧计数器能对上,说明对应回复信息是正确的
             {
                 // std::cout << "设置函数接口返回参数" << std::endl;
-                return _recv_data_res;
+                return _recv_get_data_res;
             }
             else if(_recv_data_cmdcount != _cmd_counter)//id和帧计数器没对上,再取一次
             {
@@ -263,22 +264,22 @@ int robot_command_thread::_send_data_factory_callback(std::string data)
                 if(recv_bytes > 0)
                 {
                     std::cout << "帧计数对不上，再取一次，收到指令回复信息..." << std::string(recv_buff) << std::endl;
-                    if (_ParseRecvData(std::string(recv_buff)))
+                    if (_ParseRecvData(std::string(recv_buff))!="0")
                     {
                         if (_recv_data_cmdid == 377)
                         {
                             // std::cout << "运动学接口返回参数" << std::endl;
-                            return -2001;
+                            return std::to_string(-2001);
                         }
                         else if (_recv_data_cmdcount == _cmd_counter) // id和帧计数器能对上,说明对应回复信息是正确的
                         {
                             // std::cout << "设置函数接口返回参数" << std::endl;
-                            return _recv_data_res;
+                            return _recv_get_data_res;
                         }
                         else
                         {
-                            std::cout << "未处理的情况,默认返回0" << std::endl;
-                            return 0;
+                            // std::cout << "未处理的情况,默认返回0" << std::endl;
+                            return std::to_string(0);
                         }
                     }
 
@@ -288,14 +289,14 @@ int robot_command_thread::_send_data_factory_callback(std::string data)
             else
             {
                 std::cout << "未处理的情况,默认返回0" << std::endl;
-                return 0;
+                return std::to_string(0);
             }
         }
     }
     else if (recv_bytes == 0)
     {
         std::cout << "接收到0字节，请检查网络是否已经断开" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
     else
     {
@@ -318,11 +319,11 @@ int robot_command_thread::_send_data_factory_callback(std::string data)
             }
             lose_connect_times = 0;
         }
-        return 0;
+        return std::to_string(0);
     }
 }
 
-int robot_command_thread::_send_script_data_callback(std::string data){
+std::string robot_command_thread::_send_script_data_callback(std::string data){
     static char recv_buff[RECV_BUFF];
     std::cout << "发送指令信息..." << data << std::endl;
     send(_socketfd2,data.c_str(),data.size(),0);//发送指令信息
@@ -332,19 +333,19 @@ int robot_command_thread::_send_script_data_callback(std::string data){
     int recv_bytes = recv(_socketfd2,recv_buff,sizeof(recv_buff),0);
     if(recv_bytes > 0){
         std::cout << "收到指令回复信息..." << std::string(recv_buff) << std::endl;
-        if(_ParseRecvData(std::string(recv_buff))){
+        if(_ParseRecvData(std::string(recv_buff))!="0"){
             if(_recv_data_cmdcount == _script_counter){//id和帧计数器能对上,说明对应回复信息是正确的
                     //std::cout << "设置函数接口返回参数" << std::endl;
-                return _recv_data_res;
+                return _recv_get_data_res;
             }else{
                 //std::cout << "未处理的情况,默认返回0" << std::endl;
-                return 0;
+                return std::to_string(0);
             }
         }
     }else if(recv_bytes == 0)
     {
         std::cout << "接收到0字节，请检查网络是否已经断开" << std::endl;
-        return 0;
+        return std::to_string(0);
     }else{
         std::cout << "接收失败" << " " << strerror(errno) << errno << std::endl;
         lose_connect_times++;
@@ -364,67 +365,97 @@ int robot_command_thread::_send_script_data_callback(std::string data){
             }
             lose_connect_times = 0;
         }
-        return 0;
+        return std::to_string(0);
     }
 }
-
-std::string robot_command_thread::_send_get_data_factory_callback(std::string data){
+std::string robot_command_thread::getbuff(std::string para){
+    std::cout << "getbuff" << std::endl;
     static char recv_buff[RECV_BUFF];
-    std::cout << "发送指令信息..." << data << std::endl;
-    send(_socketfd1,data.c_str(),data.size(),0);//发送指令信息
-    //std::cout << "发送指令成功!" << std::endl;
-    memset(recv_buff,0,sizeof(recv_buff));
-        //rclcpp::sleep_for(30ms);
-    sleep(1);
-    
-    int recv_bytes = recv(_socketfd1,recv_buff,sizeof(recv_buff),0);
+    memset(recv_buff, 0, sizeof(recv_buff));
+    int recv_bytes = recv(_socketfd1, recv_buff, sizeof(recv_buff), 0);
+    std::cout << "getbuff" << std::string(recv_buff) << std::endl;
     if(recv_bytes > 0)
     {
-        std::cout << "收到指令回复信息..." << std::string(recv_buff) << std::endl;
-        if(_ParseGetRecvData(std::string(recv_buff))!="0")
+        std::cout << "getbuff,抛出异常，取buff中多余错误，再取一次，收到指令回复信息..." << std::string(recv_buff) << std::endl;
+        if (_ParseRecvData(std::string(recv_buff))!="0")
         {
-          if(_recv_data_cmdcount == _cmd_counter)//id和帧计数器能对上,说明对应回复信息是正确的
+            if (_recv_data_cmdid == 377)
             {
-                std::cout << "设置函数接口返回参数" << std::endl;
-                std::cout << _recv_get_data_res<< std::endl;
+                // std::cout << "运动学接口返回参数" << std::endl;
+                return std::to_string(-2001);
+            }
+            else if (_recv_data_cmdcount == _cmd_counter) // id和帧计数器能对上,说明对应回复信息是正确的
+            {
+                // std::cout << "设置函数接口返回参数" << std::endl;
                 return _recv_get_data_res;
+            }
+            else
+            {
+                // std::cout << "未处理的情况,默认返回0" << std::endl;
+                return std::to_string(0);
+            }
+        }
 
-            }else
-            {
-                std::cout << "未处理的情况,默认返回0" << std::endl;
-                return "0";
-            }
-        }
     }
-    else if(recv_bytes == 0)
-    {
-        std::cout << "接收到0字节，请检查网络是否已经断开" << std::endl;
-        return "0";
-    }else{
-        std::cout << "接收失败" << " " << strerror(errno) << errno << std::endl;
-        lose_connect_times++;
-        if((lose_connect_times >= LOSE_TCP_CONNECT_TIME_MAX) || (_socketfd1 == -1))
-        {
-            std::cout << "try to reconnect." << std::endl;
-            int fd = reConnect_tcp(_socketfd1, 8080);
-            if(fd == -1)
-            {
-                std::cout << "重连失败" << std::endl;
-                _socketfd1 = -1;
-            }
-            else{
-                _socketfd1 = fd;
-                std::cout << "重连成功 " << _socketfd1 << std::endl;
-                fd = -1;
-            }
-            lose_connect_times = 0;
-        }
-        return "0";
-    }
+
 }
 
+// std::string robot_command_thread::_send_get_data_factory_callback(std::string data){
+//     static char recv_buff[RECV_BUFF];
+//     std::cout << "发送指令信息..." << data << std::endl;
+//     send(_socketfd1,data.c_str(),data.size(),0);//发送指令信息
+//     //std::cout << "发送指令成功!" << std::endl;
+//     memset(recv_buff,0,sizeof(recv_buff));
+//         //rclcpp::sleep_for(30ms);
+//     sleep(1);
+    
+//     int recv_bytes = recv(_socketfd1,recv_buff,sizeof(recv_buff),0);
+//     if(recv_bytes > 0)
+//     {
+//         std::cout << "收到指令回复信息..." << std::string(recv_buff) << std::endl;
+//         if(_ParseGetRecvData(std::string(recv_buff))!="0")
+//         {
+//           if(_recv_data_cmdcount == _cmd_counter)//id和帧计数器能对上,说明对应回复信息是正确的
+//             {
+//                 std::cout << "设置函数接口返回参数" << std::endl;
+//                 std::cout << _recv_get_data_res<< std::endl;
+//                 return _recv_get_data_res;
 
-int robot_command_thread::_ParseRecvData(std::string str){
+//             }else
+//             {
+//                 std::cout << "未处理的情况,默认返回0" << std::endl;
+//                 return "0";
+//             }
+//         }
+//     }
+//     else if(recv_bytes == 0)
+//     {
+//         std::cout << "接收到0字节，请检查网络是否已经断开" << std::endl;
+//         return "0";
+//     }else{
+//         std::cout << "接收失败" << " " << strerror(errno) << errno << std::endl;
+//         lose_connect_times++;
+//         if((lose_connect_times >= LOSE_TCP_CONNECT_TIME_MAX) || (_socketfd1 == -1))
+//         {
+//             std::cout << "try to reconnect." << std::endl;
+//             int fd = reConnect_tcp(_socketfd1, 8080);
+//             if(fd == -1)
+//             {
+//                 std::cout << "重连失败" << std::endl;
+//                 _socketfd1 = -1;
+//             }
+//             else{
+//                 _socketfd1 = fd;
+//                 std::cout << "重连成功 " << _socketfd1 << std::endl;
+//                 fd = -1;
+//             }
+//             lose_connect_times = 0;
+//         }
+//         return "0";
+//     }
+// }
+
+std::string robot_command_thread::_ParseRecvData(std::string str){
     std::regex pattern("/f/bIII(\\d*?)III(\\d*?)III(\\d*)III(.*?)III/b/f");
     std::smatch data_match;
     if(std::regex_match(str,data_match,pattern)){//判断帧数据是否符合模式
@@ -442,41 +473,9 @@ int robot_command_thread::_ParseRecvData(std::string str){
                 }
             }else{
                 std::cout << "解析错误:运动学接口返回信息错误" << std::endl;
-                return 0;
+                return "0";
             }
             std::cout<<kin_data<<std::endl;
-        }else{//一般控制指令或者脚本指令的反馈信息,单一int型
-            
-            _recv_data_res = atol(data_match[4].str().c_str());
-            if((_recv_data_res==1)&&(_recv_data_res==0))
-            {
-                
-                std::cout << "res is:" << _recv_data_res << std::endl;
-                return 1;
-            }
-            else
-            {
-                _start_recv_res = data_match[4].str().c_str();
-            }
-
-        }
-        //_mtx.unlock();
-    }else{
-        std::cout << "解析错误：收到通讯信息不完整,丢弃该帧内容" << std::endl;
-        return 0;
-    }
-}
-
-std::string robot_command_thread::_ParseGetRecvData(std::string str)
-{
-    std::regex pattern("/f/bIII(\\d*?)III(\\d*?)III(\\d*)III(.*?)III/b/f");
-    std::smatch data_match;
-    if(std::regex_match(str,data_match,pattern))
-    {//判断帧数据是否符合模式
-        //_mtx.lock();
-        _recv_data_cmdcount = std::atol(data_match[1].str().c_str());
-        _recv_data_cmdid = std::atol(data_match[2].str().c_str());
-        if(_recv_data_cmdid == 377){//运动学接口反馈回来的信息
             _recv_get_data_res  = data_match[4];
             return _recv_get_data_res;
         }
@@ -487,16 +486,60 @@ std::string robot_command_thread::_ParseGetRecvData(std::string str)
         else if(_recv_data_cmdid == 500){
             _recv_get_data_res  = data_match[4];
             return _recv_get_data_res;
-        }else{
-            std::cout << "解析错误:返回指令编号错误" << std::endl;
-            return "0";
         }
-    }
-    else{
+        else{//一般控制指令或者脚本指令的反馈信息,单一int型
+            
+            _recv_get_data_res = data_match[4].str().c_str();
+            if((_recv_get_data_res=="1")&&(_recv_get_data_res=="0"))
+            {
+                
+                std::cout << "res is:" << _recv_get_data_res << std::endl;
+                return "1";
+            }
+            else
+            {
+                _start_recv_res = data_match[4].str().c_str();
+                return _start_recv_res;
+            }
+
+        }
+        //_mtx.unlock();
+    }else{
         std::cout << "解析错误：收到通讯信息不完整,丢弃该帧内容" << std::endl;
         return "0";
-    }    
+    }
 }
+
+// std::string robot_command_thread::_ParseGetRecvData(std::string str)
+// {
+//     std::regex pattern("/f/bIII(\\d*?)III(\\d*?)III(\\d*)III(.*?)III/b/f");
+//     std::smatch data_match;
+//     if(std::regex_match(str,data_match,pattern))
+//     {//判断帧数据是否符合模式
+//         //_mtx.lock();
+//         _recv_data_cmdcount = std::atol(data_match[1].str().c_str());
+//         _recv_data_cmdid = std::atol(data_match[2].str().c_str());
+//         if(_recv_data_cmdid == 377){//运动学接口反馈回来的信息
+//             _recv_get_data_res  = data_match[4];
+//             return _recv_get_data_res;
+//         }
+//         else if(_recv_data_cmdid == 842){//获取DH参数
+//             _recv_get_data_res  = data_match[4];
+//             return _recv_get_data_res;
+//         }
+//         else if(_recv_data_cmdid == 500){
+//             _recv_get_data_res  = data_match[4];
+//             return _recv_get_data_res;
+//         }else{
+//             std::cout << "解析错误:返回指令编号错误" << std::endl;
+//             return "0";
+//         }
+//     }
+//     else{
+//         std::cout << "解析错误：收到通讯信息不完整,丢弃该帧内容" << std::endl;
+//         return "0";
+//     }    
+// }
 
 
 void robot_command_thread::_ParseROSCommandData_callback(const std::shared_ptr<remote_cmd_server_srv_msg::Request> req,\ 
@@ -516,16 +559,24 @@ void robot_command_thread::_ParseROSCommandData_callback(const std::shared_ptr<r
                 res->cmd_res = _get_variable(para_list);
             }else{
                 auto find_idx = _fr_function_list.find(func_name);
-                auto find_idx_get = _fr_get_list.find(func_name);
-                if(find_idx == _fr_function_list.end()&& find_idx_get  == _fr_get_list.end()){
+                if(find_idx == _fr_function_list.end()){
                     std::cout << "指令错误: 找不到该指令对应的函数" << std::endl;
                     res->cmd_res = std::string("0");
-                }else if(find_idx != _fr_function_list.end()&& find_idx_get  == _fr_get_list.end()){
-                    res->cmd_res = std::to_string((this->*(find_idx->second))(para_list));
+                }else if(find_idx != _fr_function_list.end()){
+                    // res->cmd_res = std::to_string((this->*(find_idx->second))(para_list));
+                    res->cmd_res = (this->*(find_idx->second))(para_list);
                 }
-                else if(find_idx == _fr_function_list.end()&& find_idx_get  != _fr_get_list.end()){
-                    res->cmd_res = (this->*(find_idx_get->second))(para_list);
-                }
+                // auto find_idx_get = _fr_get_list.find(func_name);
+                // if(find_idx == _fr_function_list.end()&& find_idx_get  == _fr_get_list.end()){
+                //     std::cout << "指令错误: 找不到该指令对应的函数" << std::endl;
+                //     res->cmd_res = std::string("0");
+                // }else if(find_idx != _fr_function_list.end()&& find_idx_get  == _fr_get_list.end()){
+                //     // res->cmd_res = std::to_string((this->*(find_idx->second))(para_list));
+                //     res->cmd_res = (this->*(find_idx->second))(para_list);
+                // }
+                // else if(find_idx == _fr_function_list.end()&& find_idx_get  != _fr_get_list.end()){
+                //     res->cmd_res = (this->*(find_idx_get->second))(para_list);
+                // }
             }
         }else{
             std::cout << "指令错误:函数参数输入不合法,参数列表由字母,数字和逗号组成,不能有空格出现" <<std::endl;
@@ -549,13 +600,13 @@ void robot_command_thread::_ParseROSScript_callback(const std::shared_ptr<remote
         if(std::regex_match(req->line_str,spt_match,spt_reg)){
             //spt_match[1];//"fr_script_start"
             std::string script_name = spt_match[2];//script name
-            res->res = std::to_string(_send_script_data_callback(FRAPI_base::command_factry("ScriptName",++_script_counter,script_name)));
+            res->res = _send_script_data_callback(FRAPI_base::command_factry("ScriptName",++_script_counter,script_name));
         }else{
             std::cout << "指令错误:未找到脚本名称" << std::endl;
         }
 
     }else if(req->line_str == "fr_script_end"){//脚本传输结束
-        res->res = std::to_string(_send_script_data_callback(FRAPI_base::command_factry("ScriptContent",++_script_counter,script_content)));
+        res->res = _send_script_data_callback(FRAPI_base::command_factry("ScriptContent",++_script_counter,script_content));
     }else{//脚本正文部分
         script_content += req->line_str;
         res->res = "1";
@@ -567,14 +618,14 @@ void robot_command_thread::_ParseROSScript_callback(const std::shared_ptr<remote
 
 
 
-int robot_command_thread::_def_jnt_position(std::string pos){
+std::string robot_command_thread::_def_jnt_position(std::string pos){
     //std::regex pattern("[-|\\.|,|\\d]*"); //参数模式应该是所有参数都是数字和逗号
     std::regex pattern("[\\d.\\-,]*"); //参数模式应该是所有参数都是数字和逗号
     std::smatch para_match;
     if(std::regex_match(pos,para_match,pattern)){//进行参数正确性判断
         std::smatch data_match;
         std::regex search_para(",");//分隔符
-        std::regex_token_iterator iter_data(pos.begin(),pos.end(),search_para,-1);
+        std::regex_token_iterator<std::string::iterator> iter_data(pos.begin(),pos.end(),search_para,-1);
         decltype(iter_data) end;
         int count = 0;
         for(;iter_data != end;iter_data++){
@@ -582,14 +633,14 @@ int robot_command_thread::_def_jnt_position(std::string pos){
         }
         if(count != 7){
             std::cout << "指令错误:关节位置参数为6个,参数输入个数请确认" << std::endl;
-            return 0;
+            return std::to_string(0);
         }std::cout<<_recv_data_res<<std::endl;
-        iter_data = std::regex_token_iterator(pos.begin(),pos.end(),search_para,-1);
+        iter_data = std::regex_token_iterator<std::string::iterator>(pos.begin(),pos.end(),search_para,-1);
         int idx = atol(iter_data->str().c_str());//指令序号
         iter_data++;
         if(idx > _cmd_jnt_pos_list.size()+1 || idx <= 0){//如果大于当前容器最大值+1,那么要报错,因为序列容器中间无法留空
             std::cout << "指令错误:容器序号超限" << std::endl;
-            return 0;
+            return std::to_string(0);
         }else if(idx <= _cmd_jnt_pos_list.size()){//如果是小于等于当前的容量,那么就是点位信息覆盖
             int i=0;
             for(;iter_data != end;iter_data++,i++){
@@ -605,19 +656,19 @@ int robot_command_thread::_def_jnt_position(std::string pos){
         }
     }else{
         std::cout << "指令错误：关节点位输入参数规则为第一个为存储序号,后续为关节位置信息,以逗号隔开,不能出现空格" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
-    return 1;
+    return std::to_string(1);
 }
 
-int robot_command_thread::_def_cart_position(std::string pos){
+std::string robot_command_thread::_def_cart_position(std::string pos){
     //std::regex pattern("[\\.\\d|\\d|,|-]*"); //参数模式应该是所有参数都是数字
     std::regex pattern("[\\d.\\-,]*"); //参数模式应该是所有参数都是数字
     std::smatch para_match;
     if(std::regex_match(pos,para_match,pattern)){
         std::smatch data_match;
         std::regex search_para(",");//分隔符
-        std::regex_token_iterator iter_data(pos.begin(),pos.end(),search_para,-1);
+        std::regex_token_iterator<std::string::iterator> iter_data(pos.begin(),pos.end(),search_para,-1);
         decltype(iter_data) end;
         int count = 0;
         for(;iter_data != end;iter_data++){
@@ -625,14 +676,14 @@ int robot_command_thread::_def_cart_position(std::string pos){
         }
         if(count != 7){
             std::cout << "指令错误:笛卡尔位置参数为6个,参数输入个数请确认" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
-        iter_data = std::regex_token_iterator(pos.begin(),pos.end(),search_para,-1);
+        iter_data = std::regex_token_iterator<std::string::iterator>(pos.begin(),pos.end(),search_para,-1);
         int idx = atol(iter_data->str().c_str());//指令序号
         iter_data++;
         if(idx > _cmd_cart_pos_list.size()+1 || idx <= 0){//如果大于当前容器最大值+1,那么要报错,因为序列容器中间无法留空
             std::cout << "指令错误:容器序号超限" << std::endl;
-            return 0;
+            return std::to_string(0);
         }else if(idx <= _cmd_cart_pos_list.size()){//如果是小于等于当前的容量,那么就是点位信息覆盖
             _cmd_cart_pos_list.at(idx-1).tran.x = atof(iter_data->str().c_str());iter_data++;
             _cmd_cart_pos_list.at(idx-1).tran.y = atof(iter_data->str().c_str());iter_data++;
@@ -652,9 +703,9 @@ int robot_command_thread::_def_cart_position(std::string pos){
         }
     }else{
         std::cout << "指令错误：笛卡尔点位输入参数规则为第一个为存储序号,后续为笛卡尔位置信息,以逗号隔开,不能出现空格" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
-    return 1;
+    return std::to_string(1);
 }
 
 std::string robot_command_thread::_get_variable(std::string para_list){
@@ -697,23 +748,23 @@ std::string robot_command_thread::_get_variable(std::string para_list){
     }
 }
 
-int  robot_command_thread::DragTeachSwitch(std::string para){//拖动示教模式切换
+std::string  robot_command_thread::DragTeachSwitch(std::string para){//拖动示教模式切换
     return _send_data_factory_callback(FRAPI_base::command_factry("DragTeachSwitch",++_cmd_counter,para));
 }
 
-int  robot_command_thread::RobotEnable(std::string para){//机械臂使能
+std::string  robot_command_thread::RobotEnable(std::string para){//机械臂使能
     return _send_data_factory_callback(FRAPI_base::command_factry("RobotEnable",++_cmd_counter,para));
 }
 
-int robot_command_thread::Mode(std::string para){//手动模式,自动模式切换
+std::string robot_command_thread::Mode(std::string para){//手动模式,自动模式切换
     return _send_data_factory_callback(FRAPI_base::command_factry("Mode",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetSpeed(std::string para){
+std::string robot_command_thread::SetSpeed(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetSpeed",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetToolCoord(std::string para){
+std::string robot_command_thread::SetToolCoord(std::string para){
     //int id, DescPose *coord, int type, int install
     std::string install,type;
     install = this->get_parameter("toolcoord_install").value_to_string();
@@ -722,7 +773,7 @@ int robot_command_thread::SetToolCoord(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolCoord",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetToolList(std::string para){
+std::string robot_command_thread::SetToolList(std::string para){
     //int id, DescPose *coord, int type, int install
     std::string install,type;
     install = this->get_parameter("toolcoord_install").value_to_string();
@@ -731,48 +782,48 @@ int robot_command_thread::SetToolList(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolList",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetExToolCoord(std::string para){
+std::string robot_command_thread::SetExToolCoord(std::string para){
     //int id, DescPose *etcp, DescPose *etool
     return _send_data_factory_callback(FRAPI_base::command_factry("SetExToolCoord",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetExToolList(std::string para){
+std::string robot_command_thread::SetExToolList(std::string para){
     //int id, DescPose *etcp, DescPose *etool
     return _send_data_factory_callback(FRAPI_base::command_factry("SetExToolList",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetWObjCoord(std::string para){
+std::string robot_command_thread::SetWObjCoord(std::string para){
     //int id, DescPose *coord
     return _send_data_factory_callback(FRAPI_base::command_factry("SetWObjCoord",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetWObjList(std::string para){
+std::string robot_command_thread::SetWObjList(std::string para){
     //int id, DescPose *coord
     return _send_data_factory_callback(FRAPI_base::command_factry("SetWObjList",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetLoadWeight(std::string para){
+std::string robot_command_thread::SetLoadWeight(std::string para){
     //float weight
     return _send_data_factory_callback(FRAPI_base::command_factry("SetLoadWeight",++_cmd_counter,para));
 }
     
-int robot_command_thread::SetLoadCoord(std::string para){
+std::string robot_command_thread::SetLoadCoord(std::string para){
     //DescTran *coord
     return _send_data_factory_callback(FRAPI_base::command_factry("SetLoadCoord",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetRobotInstallPos(std::string para){
+std::string robot_command_thread::SetRobotInstallPos(std::string para){
     //uint8_t install
     return _send_data_factory_callback(FRAPI_base::command_factry("SetRobotInstallPos",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetRobotInstallAngle(std::string para){
+std::string robot_command_thread::SetRobotInstallAngle(std::string para){
     //double yangle, double zangle
     return _send_data_factory_callback(FRAPI_base::command_factry("SetRobotInstallAngle",++_cmd_counter,para));
 }
 
 //安全配置
-int robot_command_thread::SetAnticollision(std::string para){
+std::string robot_command_thread::SetAnticollision(std::string para){
     //int mode, float level[6], int config
     std::string mode,config;
     mode = this->get_parameter("collision_mode").value_to_string();
@@ -781,59 +832,78 @@ int robot_command_thread::SetAnticollision(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetAnticollision",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetCollisionStrategy(std::string para){
+std::string robot_command_thread::SetCollisionStrategy(std::string para){
     //int strategy
+    // 使用字符串流分割字符串
+    std::stringstream ss(para);
+    std::string item;
+    std::vector<std::string> params;
+
+    // 分割字符串并存储到向量中
+    while (std::getline(ss, item, ',')) {
+        params.push_back(item);
+    }
+
+    // 创建新的字符串
+    std::string nested_part = "{" + params[3] + "," + params[4] + "," + params[5] + "," +
+                               params[6] + "," + params[7] + "," + params[8] + "}";
+    
+    // 组合最终字符串
+    std::string new_para = params[0] + "," + params[1] + "," + params[2] + "," + nested_part;
+
+    // 将结果赋值回 para
+    para = new_para;
     return _send_data_factory_callback(FRAPI_base::command_factry("SetCollisionStrategy",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetLimitPositive(std::string para){
+std::string robot_command_thread::SetLimitPositive(std::string para){
     //float limit[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetLimitPositive",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetLimitNegative(std::string para){
+std::string robot_command_thread::SetLimitNegative(std::string para){
     //float limit[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetLimitNegative",++_cmd_counter,para));
 }
 
-int robot_command_thread::ResetAllError(std::string para){
+std::string robot_command_thread::ResetAllError(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("ResetAllError",++_cmd_counter,para));
 }
 
-int robot_command_thread::FrictionCompensationOnOff(std::string para){
+std::string robot_command_thread::FrictionCompensationOnOff(std::string para){
     //uint8_t state
     return _send_data_factory_callback(FRAPI_base::command_factry("FrictionCompensationOnOff",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetFrictionValue_level(std::string para){
+std::string robot_command_thread::SetFrictionValue_level(std::string para){
     //float coeff[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetFrictionValue_level",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetFrictionValue_wall(std::string para){
+std::string robot_command_thread::SetFrictionValue_wall(std::string para){
     //float coeff[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetFrictionValue_wall",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetFrictionValue_ceiling(std::string para){
+std::string robot_command_thread::SetFrictionValue_ceiling(std::string para){
     //float coeff[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetFrictionValue_ceiling",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetFrictionValue_freedom(std::string para){
+std::string robot_command_thread::SetFrictionValue_freedom(std::string para){
     //float coeff[6]
     return _send_data_factory_callback(FRAPI_base::command_factry("SetFrictionValue_freedom",++_cmd_counter,para));
 }
 
 //外设控制
-int robot_command_thread::ActGripper(std::string para){
+std::string robot_command_thread::ActGripper(std::string para){
     //int index, uint8_t act
     return _send_data_factory_callback(FRAPI_base::command_factry("ActGripper",++_cmd_counter,para));
 }
 
-int robot_command_thread::MoveGripper(std::string para){
+std::string robot_command_thread::MoveGripper(std::string para){
     //int index, int pos, int vel, int force, int max_time, uint8_t block
     std::string vel,force,mtime,block;
     vel = this->get_parameter("gripper_vel").value_to_string();
@@ -845,7 +915,7 @@ int robot_command_thread::MoveGripper(std::string para){
 }
     
 //IO控制
-int robot_command_thread::SetDO(std::string para){
+std::string robot_command_thread::SetDO(std::string para){
     //int id, uint8_t status, uint8_t smooth, uint8_t block
     std::string smooth,block;
     smooth = this->get_parameter("DO_smooth").value_to_string();
@@ -854,7 +924,7 @@ int robot_command_thread::SetDO(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetDO",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetToolDO(std::string para){
+std::string robot_command_thread::SetToolDO(std::string para){
     //int id, uint8_t status, uint8_t smooth, uint8_t block
     std::string smooth,block;
     smooth = this->get_parameter("DO_smooth").value_to_string();
@@ -863,7 +933,7 @@ int robot_command_thread::SetToolDO(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolDO",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetAO(std::string para){
+std::string robot_command_thread::SetAO(std::string para){
     //int id, float value, uint8_t block
     std::string block;
     block = this->get_parameter("AO_block").value_to_string();
@@ -875,7 +945,7 @@ int robot_command_thread::SetAO(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetAO",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetToolAO(std::string para){
+std::string robot_command_thread::SetToolAO(std::string para){
     //int id, float value, uint8_t block
     std::string block;
     block = this->get_parameter("AO_block").value_to_string();
@@ -887,13 +957,13 @@ int robot_command_thread::SetToolAO(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolAO",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetAuxDO(std::string para){
+std::string robot_command_thread::SetAuxDO(std::string para){
     //int number, int switch
     para = para + "," + "1";
     return _send_data_factory_callback(FRAPI_base::command_factry("SetAuxDO",++_cmd_counter,para));
 }
 
-int robot_command_thread::SetAuxAO(std::string para){
+std::string robot_command_thread::SetAuxAO(std::string para){
     //int number int percentage
     std::string block;
     block = this->get_parameter("AO_block").value_to_string();
@@ -906,34 +976,34 @@ int robot_command_thread::SetAuxAO(std::string para){
 }
 
 //外部轴功能
-int robot_command_thread::ExtAxisLoadModbusTCPDriver(std::string para){//加载外部轴
+std::string robot_command_thread::ExtAxisLoadModbusTCPDriver(std::string para){//加载外部轴
     //??
     return _send_data_factory_callback(FRAPI_base::command_factry("ExtAxisLoadModbusTCPDriver",++_cmd_counter,para));
 }
 
-int robot_command_thread::ExtAxisServoOn(std::string para){//外部轴使能
+std::string robot_command_thread::ExtAxisServoOn(std::string para){//外部轴使能
     //int number, int switch
     return _send_data_factory_callback(FRAPI_base::command_factry("ExtAxisServoOn",++_cmd_counter,para));
 }
 
-int robot_command_thread::ExtAxisStartJog(std::string para){//外部轴点动
+std::string robot_command_thread::ExtAxisStartJog(std::string para){//外部轴点动
     //6, int number, int direction, int speed, int acc_speed, double max_distance
     return _send_data_factory_callback(FRAPI_base::command_factry("ExtAxisStartJog",++_cmd_counter,para));
 }
 
-int robot_command_thread::ExtAxisSetHoming(std::string para){//外部轴回零
+std::string robot_command_thread::ExtAxisSetHoming(std::string para){//外部轴回零
     //int number, int zero_mode, int search_speed, int latch_speed
     return _send_data_factory_callback(FRAPI_base::command_factry("ExtAxisSetHoming", ++_cmd_counter,para));
 }
 
-int robot_command_thread::StopExtAxisJog(std::string para){
+std::string robot_command_thread::StopExtAxisJog(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("StopExtAxisJog", ++_cmd_counter,para));
 }
 
 
 //运动指令
-int robot_command_thread::StartJOG(std::string para){
+std::string robot_command_thread::StartJOG(std::string para){
     //uint8_t ref, uint8_t nb, uint8_t dir, float vel, float acc, float max_dis
     std::string acc,max_dis;
     //acc = this->get_parameter("JOG_acc").value_to_string();
@@ -942,28 +1012,28 @@ int robot_command_thread::StartJOG(std::string para){
     return _send_data_factory_callback(FRAPI_base::command_factry("StartJOG",++_cmd_counter,para));
 }
 
-int robot_command_thread::StopJOG(std::string para){
+std::string robot_command_thread::StopJOG(std::string para){
     //uint8_t ref
     return _send_data_factory_callback(FRAPI_base::command_factry("StopJOG",++_cmd_counter,para));
 }
 
-int robot_command_thread::StopLine(std::string para){
+std::string robot_command_thread::StopLine(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("STOPLINE",++_cmd_counter,para));
 }
 
-int robot_command_thread::StopTool(std::string para){
+std::string robot_command_thread::StopTool(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("STOPTOOL",++_cmd_counter,para));
 }
 
-int robot_command_thread::ImmStopJOG(std::string para){
+std::string robot_command_thread::ImmStopJOG(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("ImmStopJOG",++_cmd_counter,para));
 }
 
-int robot_command_thread::MoveJ(std::string para){
+std::string robot_command_thread::MoveJ(std::string para){
     //JointPos *joint_pos, DescPose *desc_pos, int tool, int user, float vel, float acc, float ovl, ExaxisPos *epos, float blendT, uint8_t offset_flag, DescPose *offset_pos
     std::string speed,tool,user,acc,ovl,eaxis1,eaxis2,eaxis3,eaxis4,blendT,offset_flag,offset_pos_x,\
                 offset_pos_y,offset_pos_z,offset_pos_rx,offset_pos_ry,offset_pos_rz;
@@ -985,7 +1055,7 @@ int robot_command_thread::MoveJ(std::string para){
     std::cout<<para<<std::endl;
 
     std::regex search_para(",");
-    std::regex_token_iterator iter_data(para.begin(),para.end(),search_para,-1);
+    std::regex_token_iterator<std::string::iterator> iter_data(para.begin(),para.end(),search_para,-1);
     std::regex_token_iterator<std::string::iterator> end;
     std::smatch num_match;
     std::string head_str = iter_data->str();
@@ -1022,8 +1092,9 @@ int robot_command_thread::MoveJ(std::string para){
             }
         }
         //std::cout << "send kin req data: " << para2; 
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        std::string res = GetForwardKin(para2);//求解正向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(tmp_jnt_pos.jPos[i]) + ","; 
@@ -1040,7 +1111,7 @@ int robot_command_thread::MoveJ(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveJ",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveJ指令调用正向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
@@ -1077,8 +1148,9 @@ int robot_command_thread::MoveJ(std::string para){
         para2 = para2 + std::to_string(tmp_cart_pos.rpy.rz) + ",";
         para2 += "-1";
         //std::cout << "send kin req data: " << para2; 
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        std::string res = GetInverseKin(para2);//求解逆向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(_kin_res[i]) + ","; 
@@ -1097,16 +1169,16 @@ int robot_command_thread::MoveJ(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveJ",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveJ指令调用逆向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else{
         std::cout << "指令错误:MoveJ参数输入非法,没有找到点位信息" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
 
 }
     
-int robot_command_thread::MoveL(std::string para){
+std::string robot_command_thread::MoveL(std::string para){
     //JointPos *joint_pos, DescPose *desc_pos, int tool, int user, float vel, float acc, float ovl, float blendR, ExaxisPos *epos, uint8_t search, uint8_t offset_flag, DescPose *offset_pos
   std::string tool,user,acc,ovl,eaxis1,eaxis2,eaxis3,eaxis4,blendR,search,offset_flag,offset_pos_x,\
                 offset_pos_y,offset_pos_z,offset_pos_rx,offset_pos_ry,offset_pos_rz;
@@ -1129,7 +1201,7 @@ int robot_command_thread::MoveL(std::string para){
     offset_pos_rz = this->get_parameter("MoveJLC_offset_pos_rz").value_to_string();
 
     std::regex search_para(",");
-    std::regex_token_iterator iter_data(para.begin(),para.end(),search_para,-1);
+    std::regex_token_iterator<std::string::iterator> iter_data(para.begin(),para.end(),search_para,-1);
     std::smatch num_match;
     std::string head_str = iter_data->str();
     if(std::regex_match(head_str,num_match,std::regex("(JNT)([0-9]*)"))){   
@@ -1148,8 +1220,9 @@ int robot_command_thread::MoveL(std::string para){
                 para2 += ",";
             }
         }
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        std::string res = GetForwardKin(para2);//求解正向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(tmp_jnt_pos.jPos[i]) + ","; 
@@ -1164,13 +1237,13 @@ int robot_command_thread::MoveL(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveL",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveL指令调用正向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_cart_pos_list.size()){
             std::cout << "指令错误:MoveL输入位置点序号超限" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
         DescPose tmp_cart_pos = _cmd_cart_pos_list.at(index-1);
         iter_data++;
@@ -1183,8 +1256,9 @@ int robot_command_thread::MoveL(std::string para){
         para2 = para2 + std::to_string(tmp_cart_pos.rpy.ry) + ",";
         para2 = para2 + std::to_string(tmp_cart_pos.rpy.rz) + ",";
         para2 += "-1";
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        std::string res = GetInverseKin(para2);//求解逆向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(_kin_res[i]) + ","; 
@@ -1202,16 +1276,16 @@ int robot_command_thread::MoveL(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveL",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveL指令调用逆向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else{
         std::cout << "指令错误:MoveL参数输入非法" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
 
 }
 
-int robot_command_thread::MoveC(std::string para){
+std::string robot_command_thread::MoveC(std::string para){
     //JointPos *joint_pos_p, DescPose *desc_pos_p, int ptool, int puser, float pvel, float pacc, ExaxisPos *epos_p, uint8_t poffset_flag, DescPose *offset_pos_p,JointPos *joint_pos_t, DescPose *desc_pos_t, int ttool, int tuser, float tvel, float tacc, ExaxisPos *epos_t, uint8_t toffset_flag, DescPose *offset_pos_t,float ovl, float blendR
     std::string tool,user,acc,ovl,eaxis1,eaxis2,eaxis3,eaxis4,blendR,offset_flag,offset_pos_x,\
                 offset_pos_y,offset_pos_z,offset_pos_rx,offset_pos_ry,offset_pos_rz;
@@ -1233,7 +1307,7 @@ int robot_command_thread::MoveC(std::string para){
     offset_pos_rz = this->get_parameter("MoveJLC_offset_pos_rz").value_to_string();
 
     std::regex search_para(",");
-    std::regex_token_iterator iter_data(para.begin(),para.end(),search_para,-1);
+    std::regex_token_iterator<std::string::iterator> iter_data(para.begin(),para.end(),search_para,-1);
     std::smatch num_match,num_match2;
     std::string head_str = iter_data->str();//第一个点位
     iter_data++;
@@ -1256,7 +1330,8 @@ int robot_command_thread::MoveC(std::string para){
                 para2 += ",";
             }
         }
-        int res1 = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        // std::string res1 = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        std::string res1 = GetForwardKin(para2);//求解正向运动学
         float _kin_res_1[6];
         for(int i=0;i<6;i++){
             _kin_res_1[i] = _kin_res[i];
@@ -1268,8 +1343,9 @@ int robot_command_thread::MoveC(std::string para){
                 para2 += ",";
             }
         }
-        int res2 = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
-        if(res1 == -2001 && res2 == -2001){
+        // std::string res2 = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        std::string res2 = GetForwardKin(para2);//求解正向运动学
+        if(res1 == "-2001" && res2 == "-2001"){
             para.clear();
             para2.clear();
             for(int i=0;i<6;i++){
@@ -1290,14 +1366,14 @@ int robot_command_thread::MoveC(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("MoveC",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:MoveC指令调用正向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)")) && std::regex_match(second_str,num_match2,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
         int index2 = atol(num_match2[2].str().c_str());
         if(index > _cmd_cart_pos_list.size() || index2 > _cmd_cart_pos_list.size()){
             std::cout << "指令错误:MoveC输入位置点序号超限" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
         DescPose tmp_cart_pos = _cmd_cart_pos_list.at(index-1);
         DescPose tmp_cart_pos2 = _cmd_cart_pos_list.at(index2-1);
@@ -1311,7 +1387,8 @@ int robot_command_thread::MoveC(std::string para){
         para2 += std::to_string(tmp_cart_pos.rpy.ry) + ",";
         para2 += std::to_string(tmp_cart_pos.rpy.rz) + ",";
         para2 += "-1";
-        int res1 = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        // std::string res1 = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        std::string res1 = GetInverseKin(para2);//求解逆向运动学
         float _kin_res_1[6];
         for(int i=0;i<6;i++){
             _kin_res_1[i] = _kin_res[i];
@@ -1325,8 +1402,9 @@ int robot_command_thread::MoveC(std::string para){
         para2 += std::to_string(tmp_cart_pos2.rpy.ry) + ",";
         para2 += std::to_string(tmp_cart_pos2.rpy.rz) + ",";
         para2 += "-1";
-        int res2 = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
-        if(res1 == -2001 && res2 == -2001){
+        // std::string res2 = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        std::string res2 = GetInverseKin(para2);//求解逆向运动学
+        if(res1 == "-2001" && res2 == "-2001"){
             para.clear();
             para2.clear();
             for(int i=0;i<6;i++){
@@ -1358,13 +1436,13 @@ int robot_command_thread::MoveC(std::string para){
         }
     }else{
         std::cout << "指令错误:MoveC参数输入非法" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
 }
 
-int robot_command_thread::Circle(std::string para){
+std::string robot_command_thread::Circle(std::string para){
     //JointPos *joint_pos_p, DescPose *desc_pos_p, int ptool, int puser, float pvel, float pacc, ExaxisPos *epos_p, JointPos *joint_pos_t, DescPose *desc_pos_t, int ttool, int tuser, float tvel, float tacc, ExaxisPos *epos_t, float ovl, uint8_t offset_flag, DescPose *offset_pos
-    return -1;
+    return std::to_string(-1);
 }
 
 // int robot_command_thread::NewSpiral(std::string para){
@@ -1373,17 +1451,17 @@ int robot_command_thread::Circle(std::string para){
 // }
 
 
-int robot_command_thread::SplineStart(std::string para){
+std::string robot_command_thread::SplineStart(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("SplineStart",++_cmd_counter,para));
 }
 
-int robot_command_thread::SplinePTP(std::string para){
+std::string robot_command_thread::SplinePTP(std::string para){
     //JointPos *joint_pos, DescPose *desc_pos, int tool, int user, float vel, float acc, float ovl
     //默认进来的都是JNT数据
     std::regex search_para(",");
-    std::regex_token_iterator iter_data(para.begin(),para.end(),search_para,-1);
+    std::regex_token_iterator<std::string::iterator> iter_data(para.begin(),para.end(),search_para,-1);
     std::smatch num_match;
     std::string head_str = iter_data->str();
     if(std::regex_match(head_str,num_match,std::regex("(JNT)([0-9]*)"))){ 
@@ -1408,8 +1486,9 @@ int robot_command_thread::SplinePTP(std::string para){
             }
         }
         //std::cout << "SplinePTP数据: " << FRAPI_base::command_factry("GetForwardKin",1,para2) << std::endl;
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para2));//求解正向运动学
+        std::string res = GetForwardKin(para2);//求解正向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(tmp_jnt_pos.jPos[i]) + ","; 
@@ -1430,22 +1509,22 @@ int robot_command_thread::SplinePTP(std::string para){
     }
 }
 
-int robot_command_thread::SplineEnd(std::string para){
+std::string robot_command_thread::SplineEnd(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("SplineEnd",++_cmd_counter,para));
 }
 
-int robot_command_thread::NewSplineStart(std::string para){
+std::string robot_command_thread::NewSplineStart(std::string para){
     //uint8_t ctlPoint
     return _send_data_factory_callback(FRAPI_base::command_factry("NewSplineStart",++_cmd_counter,para));
 }
 
-int robot_command_thread::NewSplinePoint(std::string para){
+std::string robot_command_thread::NewSplinePoint(std::string para){
     //JointPos *joint_pos, DescPose *desc_pos, int tool, int user, float vel, float acc, float ovl float blendR uint8_t lastFlag
     //输入参数:pos,speed,lastflag
     std::regex search_para(",");
-    std::regex_token_iterator iter_data(para.begin(),para.end(),search_para,-1);
+    std::regex_token_iterator<std::string::iterator> iter_data(para.begin(),para.end(),search_para,-1);
     std::smatch num_match;
     std::string head_str = iter_data->str();
     if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
@@ -1476,8 +1555,9 @@ int robot_command_thread::NewSplinePoint(std::string para){
         para2 = para2 + std::to_string(tmp_cart_pos.rpy.ry) + ",";
         para2 = para2 + std::to_string(tmp_cart_pos.rpy.rz) + ",";
         para2 += "-1";
-        int res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
-        if(res == -2001){
+        // std::string res = _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para2));//求解逆向运动学
+        std::string res = GetInverseKin(para2);//求解逆向运动学
+        if(res == "-2001"){
             para.clear();
             for(int i=0;i<6;i++){
                 para += std::to_string(_kin_res[i]) + ","; 
@@ -1492,84 +1572,84 @@ int robot_command_thread::NewSplinePoint(std::string para){
             return _send_data_factory_callback(FRAPI_base::command_factry("NewSplinePoint",++_cmd_counter,para));
         }else{
             std::cout << "指令错误:NewSplinePoint指令调用逆向运动学发生错误" << std::endl;
-            return 0;
+            return std::to_string(0);
         }
     }else{
         std::cout << "指令错误:NewSplinePoint参数输入非法" << std::endl;
-        return 0;
+        return std::to_string(0);
     }
 }
 
-int robot_command_thread::NewSplineEnd(std::string para){
+std::string robot_command_thread::NewSplineEnd(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("NewSplineEnd",++_cmd_counter,para));
 }
 
-int robot_command_thread::StopMotion(std::string para){
+std::string robot_command_thread::StopMotion(std::string para){
     //empty para
     para.clear();
     return _send_data_factory_callback(FRAPI_base::command_factry("StopMotion",++_cmd_counter,para));
 }
 
-int robot_command_thread::PointsOffsetEnable(std::string para){
+std::string robot_command_thread::PointsOffsetEnable(std::string para){
     //int flag, DescPose *offset_pos
     return _send_data_factory_callback(FRAPI_base::command_factry("PointsOffsetEnable",++_cmd_counter,para));
 }
 
-int robot_command_thread::PointsOffsetDisable(std::string para){
+std::string robot_command_thread::PointsOffsetDisable(std::string para){
     //empty para
     return _send_data_factory_callback(FRAPI_base::command_factry("PointsOffsetDisable",++_cmd_counter,para));
 }
 
-int robot_command_thread::AuxServoSetParam(std::string para)
+std::string robot_command_thread::AuxServoSetParam(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetParam",++_cmd_counter,para));
 }
 // 扩展轴使能 0=去使能 1-使能
-int robot_command_thread::AuxServoEnable(std::string para)
+std::string robot_command_thread::AuxServoEnable(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoEnable",++_cmd_counter,para));
 }
 //初始设置，控制模式，默认0（位置模式）
-int robot_command_thread::AuxServoSetControlMode(std::string para)
+std::string robot_command_thread::AuxServoSetControlMode(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetControlMode",++_cmd_counter,para));
 }
 //使能前第二步：设置目标位置和速度
-int robot_command_thread::AuxServoSetTargetPos(std::string para)
+std::string robot_command_thread::AuxServoSetTargetPos(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetTargetPos",++_cmd_counter,para));
 }
-int robot_command_thread::AuxServoSetTargetSpeed(std::string para)
+std::string robot_command_thread::AuxServoSetTargetSpeed(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetTargetSpeed",++_cmd_counter,para));
 }
-int robot_command_thread::AuxServoSetTargetTorque(std::string para)
+std::string robot_command_thread::AuxServoSetTargetTorque(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetTargetTorque",++_cmd_counter,para));
 }
 //使能前第一步：设置回零方，速度。默认：0（当前位置回零）- 5 - 1
-int robot_command_thread::AuxServoHoming(std::string para)
+std::string robot_command_thread::AuxServoHoming(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoHoming",++_cmd_counter,para));
 }
-int robot_command_thread::AuxServoClearError(std::string para)
+std::string robot_command_thread::AuxServoClearError(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoClearError",++_cmd_counter,para));
 }
 //初始设置，驱动器编号
-int robot_command_thread::AuxServoSetStatusID(std::string para)
+std::string robot_command_thread::AuxServoSetStatusID(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("AuxServoSetStatusID",++_cmd_counter,para));
 }
 
-int robot_command_thread::ScriptStart(std::string para)
+std::string robot_command_thread::ScriptStart(std::string para)
 {
     return _send_data_factory_callback(FRAPI_base::command_factry("ScriptStart",++_cmd_counter,para));
 }
 
-int robot_command_thread::ScriptStart_return(std::string para)
+std::string robot_command_thread::ScriptStart_return(std::string para)
 {
     static char recv_buf[RECV_BUFF];
     memset(recv_buf,0,sizeof(recv_buf));
@@ -1580,7 +1660,7 @@ int robot_command_thread::ScriptStart_return(std::string para)
             std::cout << "收到指令回复信息..." << std::string(recv_buf) << std::endl;
             _ParseRecvData(std::string(recv_buf));
             
-            if(_ParseRecvData(std::string(recv_buf)))
+            if(_ParseRecvData(std::string(recv_buf))!="0")
             {
                 std::cout<<"指令解析成功"<<std::endl;
                if(_recv_data_cmdcount == _cmd_counter)//帧计数器能对上,说明对应回复信息对应指令Start
@@ -1605,7 +1685,7 @@ int robot_command_thread::ScriptStart_return(std::string para)
     if(recv(_socketfd1,recv_buf,sizeof(recv_buf),0)>-1)//脚本运行指令如果执行成功只会返回一次信息即“1”，再recv只要recv到说明出现问题，此处多recv一次
     {
         std::cout << "收到指令回复信息..." << std::string(recv_buf) << std::endl;
-        if(_ParseRecvData(std::string(recv_buf)))
+        if(_ParseRecvData(std::string(recv_buf))!="0")
         {
             if(_recv_data_cmdcount == _cmd_counter)//帧计数器能对上,说明对应回复信息对应指令Start
             {
@@ -1622,40 +1702,55 @@ int robot_command_thread::ScriptStart_return(std::string para)
     {
         _start_return_data = "1";
     }
-    return 0;
+    return std::to_string(0);
 }
 
 
-int robot_command_thread::ScriptStop(std::string para){
+std::string robot_command_thread::ScriptStop(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("ScriptStop",++_cmd_counter,para));
 }
 
-int robot_command_thread::ScriptPause(std::string para){
+std::string robot_command_thread::ScriptPause(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("ScriptPause",++_cmd_counter,para));
 }
 
-int robot_command_thread::ScriptResume(std::string para){
+std::string robot_command_thread::ScriptResume(std::string para){
     //empty
     return _send_data_factory_callback(FRAPI_base::command_factry("ScriptResume",++_cmd_counter,para));
 }
 
+//正逆向运动学
+std::string robot_command_thread::GetForwardKin(std::string para){
+    return _send_data_factory_callback(FRAPI_base::command_factry("GetForwardKin",++_cmd_counter,para));
+}
+
+std::string robot_command_thread::GetInverseKin(std::string para){
+    return _send_data_factory_callback(FRAPI_base::command_factry("GetInverseKin",++_cmd_counter,para));
+}
+
 std::string robot_command_thread::GetTCPOffset(std::string para)
 {
-    return _send_get_data_factory_callback(FRAPI_base::command_factry("GetTCPOffset",++_cmd_counter,para));
+    // return _send_get_data_factory_callback(FRAPI_base::command_factry("GetTCPOffset",++_cmd_counter,para));
+    std::cout << "GetTCPOffset" << std::endl;
+    return _send_data_factory_callback(FRAPI_base::command_factry("GetTCPOffset",++_cmd_counter,para));
    
 }
 
 std::string robot_command_thread::GetDHCompensation(std::string para)
 {
-    return _send_get_data_factory_callback(FRAPI_base::command_factry("GetDHCompensation",++_cmd_counter,para));
+    // return _send_get_data_factory_callback(FRAPI_base::command_factry("GetDHCompensation",++_cmd_counter,para));
+    std::cout << "GetDHCompensation" << std::endl;
+    return _send_data_factory_callback(FRAPI_base::command_factry("GetDHCompensation",++_cmd_counter,para));
    
 }
 
 std::string robot_command_thread::GetTCPOffseta(std::string para)
 {
-    return _send_get_data_factory_callback(FRAPI_base::command_factry("GetTCPOffseta",++_cmd_counter,para));
+    // return _send_get_data_factory_callback(FRAPI_base::command_factry("GetTCPOffseta",++_cmd_counter,para));
+    std::cout << "GetTCPOffseta" << std::endl;
+    return _send_data_factory_callback(FRAPI_base::command_factry("GetTCPOffseta",++_cmd_counter,para));
    
 }
 
@@ -1888,14 +1983,15 @@ int robot_recv_thread::setKeepAlive(int fd, int idle_time, int interval_time, in
 }
 
 void robot_recv_thread::_state_recv_callback(){
-    //static FR_nonrt_state state_data;
-    //static std::queue<FR_nonrt_state> store_buff;//用于存储缓存区多余的数据，需要限制长度
-    //static char temp_buff[NONRT_PACKAGE_SIZE] = {0};//用于临时存储不完整帧的数据，之后用于数据拼接
-    //static int future_recv = NONRT_PACKAGE_SIZE;//接受到不完整帧数据后用于存储下一帧头部需要接收的剩余数据长度
-    // int datalen = NONRT_PACKAGE_SIZE;
-    // uint16_t* head_ptr;
-    // uint8_t* checksum_ptr;
-    // uint16_t checksum = 0;
+    static FR_nonrt_state state_data;
+
+    static std::queue<FR_nonrt_state> store_buff;//用于存储缓存区多余的数据，需要限制长度
+    static char temp_buff[NONRT_PACKAGE_SIZE] = {0};//用于临时存储不完整帧的数据，之后用于数据拼接
+    static int future_recv = NONRT_PACKAGE_SIZE;//接受到不完整帧数据后用于存储下一帧头部需要接收的剩余数据长度
+    int datalen = NONRT_PACKAGE_SIZE;
+    uint16_t* head_ptr;
+    uint8_t* checksum_ptr;
+    uint16_t checksum = 0;
     /* 
     //取8083端口数据
     while(datalen > 0){//如果缓存区还有数据，那么就一直循环取出
@@ -1976,8 +2072,6 @@ void robot_recv_thread::_state_recv_callback(){
     static int ctrl_state_future_recv = _CTRL_STATE_SIZE ;//接受到不完整帧数据后用于存储下一帧头部需要接收的剩余数据长度
     int ctrl_state_datalen = _CTRL_STATE_SIZE ;
     uint32_t* ctrl_state_head_ptr;
-    uint8_t* checksum_ptr;
-    uint16_t checksum = 0;
 
     while(ctrl_state_datalen > 0){//如果缓存区还有数据，那么就一直循环取出     
         char recv_buff[ctrl_state_future_recv] = {0};
@@ -2058,15 +2152,12 @@ void robot_recv_thread::_state_recv_callback(){
         }
     }//end while
 
-    //下面是从队列中读取数据
     if(!ctrl_state_store_buff.empty())
         {
             ctrl_state = ctrl_state_store_buff.front();
             ctrl_state_store_buff.pop();
 
             auto msg = robot_feedback_msg();
-            auto cur_clock = rclcpp::Clock();
-
             msg.prg_state = ctrl_state.program_state;
             msg.error_code = 0;
             msg.robot_mode = ctrl_state.robot_mode;
@@ -2095,6 +2186,7 @@ void robot_recv_thread::_state_recv_callback(){
 
             // msg.exaxispos1 = ctrl_state.exaxis_status[0].exAxisPos;=
             msg.exaxispos1 = ctrl_state.auxservo_state.servo_actual_pos;
+            
             msg.exaxispos2 = ctrl_state.exaxis_status[1].exAxisPos;
             msg.exaxispos3 = ctrl_state.exaxis_status[2].exAxisPos;
             msg.exaxispos4 = ctrl_state.exaxis_status[3].exAxisPos;
@@ -2123,18 +2215,72 @@ void robot_recv_thread::_state_recv_callback(){
             msg.ft_actstatus = ctrl_state.FT_ActStatus;
             msg.emg = ctrl_state.btn_box_stop_signal;
             msg.grip_motion_done = ctrl_state.gripperMotionDone;
-            msg.timestamp = RCL_NS_TO_S(cur_clock.now().nanoseconds());
+            msg.ctrlboxerror=ctrl_state.ctrlBoxError;
+            // int i = 0;
+            // for(auto itme = msg.safetyboxsig.begin();itme < msg.safetyboxsig.end();itme++){
+            //     *itme = ctrl_state.safetyBoxSignal[i];
+            //     i++;
+            // }
+
+            msg.check_sum = state_data.check_sum;
+            // msg.start_return = _start_return_data;
             _state_publisher->publish(msg);
+
+            // std::cout << int(msg.dgt_input_h) <<" "<< int(msg.dgt_input_l) <<std::endl;
         }
     //下面是从队列中读取数据
-    // if(!store_buff.empty() && 0){//如果队列不为空，那就读取数据，否则auxservo_state就跳过本次callback
-    //     state_data = store_buff.front();
-    //     store_buff.pop();
-    //     auto msg = robot_feedback_msg();
+    if(!store_buff.empty() && 0){//如果队列不为空，那就读取数据，否则auxservo_state就跳过本次callback
+        state_data = store_buff.front();
+        store_buff.pop();
+        auto msg = robot_feedback_msg();
+        // msg.prg_state = state_data.prg_state;
+        // _program_state = msg.prg_state;
+        // msg.error_code = state_data.error_code;
+        // msg.robot_mode = state_data.robot_mode;
+        // msg.j1_cur_pos = state_data.j1_cur_pos;
+        // msg.j2_cur_pos = state_data.j2_cur_pos;
+        // msg.j3_cur_pos = state_data.j3_cur_pos;
+        // msg.j4_cur_pos = state_data.j4_cur_pos;
+        // msg.j5_cur_pos = state_data.j5_cur_pos;
+        // msg.j6_cur_pos = state_data.j6_cur_pos;
+        // msg.cart_x_cur_pos = state_data.cart_x_cur_pos;
+        // msg.cart_y_cur_pos = state_data.cart_y_cur_pos;
+        // msg.cart_z_cur_pos = state_data.cart_z_cur_pos;
+        // msg.cart_a_cur_pos = state_data.cart_a_cur_pos;
+        // msg.cart_b_cur_pos = state_data.cart_b_cur_pos;
+        // msg.cart_c_cur_pos = state_data.cart_c_cur_pos;
 
-    //     _state_publisher->publish(msg);
-    //     //std::cout <<_start_return_data<<std::endl;
+        // msg.j1_cur_tor = state_data.j1_cur_tor;
+        // msg.j2_cur_tor = state_data.j2_cur_tor;
+        // msg.j3_cur_tor = state_data.j3_cur_tor;
+        // msg.j4_cur_tor = state_data.j4_cur_tor;
+        // msg.j5_cur_tor = state_data.j5_cur_tor;
+        // msg.j6_cur_tor = state_data.j6_cur_tor;
+        // msg.prg_name = std::string(state_data.prg_name);
+        // msg.prg_total_line = state_data.prg_total_line;
+        // msg.prg_cur_line = state_data.prg_cur_line;
+        // msg.dgt_output_h = state_data.dgt_output_h;
+        // msg.dgt_output_l = state_data.dgt_output_l;
+        // msg.tl_dgt_output_l = state_data.dgt_output_l;
+        // msg.dgt_input_h = state_data.dgt_input_h;
+        // msg.dgt_input_l = state_data.dgt_input_l;
+        // msg.tl_dgt_input_l = state_data.tl_dgt_input_l;
+        // msg.ft_fx_data = state_data.FT_Fx_data;
+        // msg.ft_fy_data = state_data.FT_Fy_data;
+        // msg.ft_fz_data = state_data.FT_Fz_data;
+        // msg.ft_tx_data = state_data.FT_Tx_data;
+        // msg.ft_ty_data = state_data.FT_Ty_data;
+        // msg.ft_tz_data = state_data.FT_Tz_data;
+        // msg.ft_actstatus = state_data.FT_ActStatus;
+        // msg.emg = state_data.EMG;
+        // // msg.robot_motion_done = state_data.robot_motion_done;
+        // msg.grip_motion_done = state_data.grip_motion_done;
+        msg.check_sum = state_data.check_sum;
+
+        // msg.start_return = _start_return_data;
+        _state_publisher->publish(msg);
+        //std::cout <<_start_return_data<<std::endl;
         
 
-    // }
+    }
 }
