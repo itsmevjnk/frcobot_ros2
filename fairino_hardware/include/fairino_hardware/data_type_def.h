@@ -429,7 +429,7 @@ typedef struct _rt_state{
     uint8_t  gripper_position;    /* 夹爪位置 */ /* Gripper position */
     int8_t   gripper_speed;       /* 夹爪速度 */ /* Gripper speed */
     int8_t   gripper_current;     /* 夹爪电流 *//* Gripper current */
-    int      gripper_temp;        /* 夹爪温度 *//* Gripper temperature */
+    int      gripper_tmp;        /* 夹爪温度 *//* Gripper temperature *//////////////
     int      gripper_voltage;     /* 夹爪电压 *//* Gripper voltage */
 	robot_aux_state aux_state;/* 485Extended axis state */
 	EXT_AXIS_STATUS extAxisStatus[4];  /* UDP扩展轴状态 */
@@ -437,7 +437,18 @@ typedef struct _rt_state{
 	uint16_t extDOState[8];        //扩展DO输出
 	uint16_t extAIState[4];        //扩展AI输入
 	uint16_t extAOState[4];        //扩展AO输出
-	//int rbtEnableState;            //机器人使能状态--robot enable state
+	int rbtEnableState;            //机器人使能状态--robot enable state
+    double jointDriverTorque[6];   //关节驱动器当前扭矩
+    double jointDriverTemperature[6];//关节驱动器当前温度
+    uint16_t year;                  //年
+    uint8_t mouth;                  //月
+    uint8_t day;                  //日
+    uint8_t hour;                  //时
+    uint8_t minute;                  //分
+    uint8_t second;                  //秒
+    uint16_t millisecond;                  //毫秒
+    int softwareUpgradeState;        //机器人软件升级状态
+    uint16_t endLuaErrCode;         //末端LUA运行状态
 	uint16_t check_sum;            /* 和校验 */
 }FR_rt_state;
 #pragma pack()
