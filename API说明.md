@@ -339,8 +339,6 @@ float vel - 指令速度百分比,范围0-100
 int tool_num - 工具坐标系号
 int user_num - 工件坐标系号
 */
-int MoveJ(string point_name, float vel);//point_name是输入预存点位信息,
-例子：MoveJ(JNT1,10)
 int MoveJ(string point_name, float vel,int tool_num,int user_num);//point_name是输入预存点位信息,
 例子：MoveJ(JNT1,10,0,1)
 
