@@ -118,7 +118,7 @@ robot_command_thread::robot_command_thread(const std::string node_name):FRAPI_ba
     );
 
     _controller_ip = CONTROLLER_IP;//控制器默认ip地址
-    std::cout << "开始创建TCP socket  版本号:V2.1.20240913" << std::endl;
+    std::cout << "开始创建TCP socket  版本号:V2.1.20241126" << std::endl;
     _socketfd1 = socket(AF_INET,SOCK_STREAM,0);
     _socketfd2 = socket(AF_INET,SOCK_STREAM,0);
     if(_socketfd1 == -1 || _socketfd2 == -1){
@@ -714,20 +714,20 @@ int robot_command_thread::SetSpeed(std::string para){
 }
 
 int robot_command_thread::SetToolCoord(std::string para){
-    //int id, DescPose *coord, int type, int install
+    //int id, DescPose *coord, int type, int install, int toolID, int loadnum
     std::string install,type;
     install = this->get_parameter("toolcoord_install").value_to_string();
     type = this->get_parameter("toolcoord_type").value_to_string();
-    para = para + "," + type + "," + install;
+    para = para + "," + type + "," + install + ",0" + ",0";
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolCoord",++_cmd_counter,para));
 }
 
 int robot_command_thread::SetToolList(std::string para){
-    //int id, DescPose *coord, int type, int install
+    //int id, DescPose *coord, int type, int install, int loadnum
     std::string install,type;
     install = this->get_parameter("toolcoord_install").value_to_string();
     type = this->get_parameter("toolcoord_type").value_to_string();
-    para = para + "," + type  + "," + install;
+    para = para + "," + type  + "," + install + ",0";
     return _send_data_factory_callback(FRAPI_base::command_factry("SetToolList",++_cmd_counter,para));
 }
 
@@ -742,12 +742,14 @@ int robot_command_thread::SetExToolList(std::string para){
 }
 
 int robot_command_thread::SetWObjCoord(std::string para){
-    //int id, DescPose *coord
+    //int id, DescPose *coord, int refFrame
+    para = para + ",0";
     return _send_data_factory_callback(FRAPI_base::command_factry("SetWObjCoord",++_cmd_counter,para));
 }
 
 int robot_command_thread::SetWObjList(std::string para){
-    //int id, DescPose *coord
+    //int id, DescPose *coord, int refFrame
+    para = para + ",0";
     return _send_data_factory_callback(FRAPI_base::command_factry("SetWObjList",++_cmd_counter,para));
 }
 
@@ -2012,7 +2014,7 @@ void robot_recv_thread::_state_recv_callback(){
             {//有时候缓冲区尾部数据不是一个完整的帧，因此需要保存不完整的信息用于下一帧数据拼接
                  uint8_t* data_len_ptr = (uint8_t*)(recv_buff);
                  data_len_ptr += 7;
-                  //std::cout << "信息完整无需拼接,8081数据校验长度: " << _CTRL_STATE_SIZE << "," <<*((int*)(data_len_ptr)) << std::endl;
+                  //std::cout << "信息完整无需拼接,8081数据校验长度: " << *((int*)(data_len_ptr)) << "," << _CTRL_STATE_SIZE << std::endl;
                     memcpy(&ctrl_state, recv_buff, sizeof(ctrl_state));
                     if(ctrl_state_store_buff.size() < 10)
                     {
@@ -2029,7 +2031,7 @@ void robot_recv_thread::_state_recv_callback(){
             else {
                 uint8_t* data_len_ptr = (uint8_t*)(recv_buff);
                 data_len_ptr += 7;
-                //std::cout << "有包头但是数据长度不正确,8081数据校验长度: " << _CTRL_STATE_SIZE << "," <<*((int*)(data_len_ptr))  << std::endl;
+                //std::cout << "有包头但是数据长度不正确,8081数据校验长度: " << *((int*)(data_len_ptr))  << std::endl;
                 memset(ctrl_state_temp_buff, 0, sizeof(ctrl_state_temp_buff));//清空临时存放变量
                 memcpy(ctrl_state_temp_buff, recv_buff, ctrl_state_datalen);//只复制接收到的数据部分
                 ctrl_state_future_recv = _CTRL_STATE_SIZE - ctrl_state_datalen;
