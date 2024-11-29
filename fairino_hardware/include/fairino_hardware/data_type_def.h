@@ -355,6 +355,30 @@ typedef struct _FR_nonrt_state{
 
 
 /**************20004端口数据结构*************/
+typedef struct RobotTime
+{
+	uint16_t year = 0;
+	uint8_t mouth = 0;
+	uint8_t day = 0;
+	uint8_t hour = 0;
+	uint8_t minute = 0;
+	uint8_t second = 0;
+	uint16_t millisecond = 0;
+
+	RobotTime()
+	{
+
+	}
+
+	std::string ToString()
+	{
+		std::string rtn = std::to_string(year) + "-" + std::to_string(mouth) + "-" + std::to_string(day) + " " + std::to_string(hour) + ":" + std::to_string(minute) + ":" + std::to_string(second) + "." + std::to_string(millisecond);
+		
+		return rtn;
+	}
+
+}RobotTime;
+
 typedef struct ROBOT_AUX_STATE{
 	uint8_t servoId;
 	int servoErrCode;
@@ -381,13 +405,13 @@ typedef struct _EXT_AXIS_STATUS{
 
 
 typedef struct _rt_state{
-    uint16_t frame_head;
-    uint8_t  frame_cnt;
-    uint16_t data_len;
-    uint8_t  program_state;  //Program running status, 1- stop;2- Run; 3- Pause
-    uint8_t  robot_state;//Robot motion state, 1- stop; 2- Run; 3- Pause; 4- Drag  
-    int      main_code;
-    int      sub_code;
+	uint16_t frame_head;
+	uint8_t  frame_cnt;
+	uint16_t data_len;
+	uint8_t  program_state;  //Program running status, 1- stop;2- Run; 3- Pause
+	uint8_t  robot_state;//Robot motion state, 1- stop; 2- Run; 3- Pause; 4- Drag  
+	int      main_code;
+	int      sub_code;
 	uint8_t  robot_mode;//Robot mode, 0-automatic mode; 1- Manual mode
 	double   jt_cur_pos[6];//Current joint position
 	double   tl_cur_pos[6];//Current tool position
@@ -418,23 +442,28 @@ typedef struct _rt_state{
 	int      mc_queue_len; //Motion queue length
 	uint8_t  collisionState;//Collision detection, 1- collision; 0- No collision
 	int      trajectory_pnum; //Track point number
-    uint8_t  safety_stop0_state;  /* 安全停止信号SI0 *//* Safety stop signal SI0 */
-    uint8_t  safety_stop1_state;  /* 安全停止信号SI1 *//* Safety stop signal SI1 */
-    uint8_t  gripper_fault_id;    /* 错误夹爪号 */ /* gripper error number */
-    uint16_t gripper_fault;       /* 夹爪故障 *//* Gripper fault */
-    uint16_t gripper_active;      /* 夹爪激活状态 *//* Gripper active status */
-    uint8_t  gripper_position;    /* 夹爪位置 */ /* Gripper position */
-    int8_t   gripper_speed;       /* 夹爪速度 */ /* Gripper speed */
-    int8_t   gripper_current;     /* 夹爪电流 *//* Gripper current */
-    int      gripper_temp;        /* 夹爪温度 *//* Gripper temperature */
-    int      gripper_voltage;     /* 夹爪电压 *//* Gripper voltage */
+	uint8_t  safety_stop0_state;  /* 安全停止信号SI0 *//* Safety stop signal SI0 */
+	uint8_t  safety_stop1_state;  /* 安全停止信号SI1 *//* Safety stop signal SI1 */
+	uint8_t  gripper_fault_id;    /* 错误夹爪号 */ /* gripper error number */
+	uint16_t gripper_fault;       /* 夹爪故障 *//* Gripper fault */
+	uint16_t gripper_active;      /* 夹爪激活状态 *//* Gripper active status */
+	uint8_t  gripper_position;    /* 夹爪位置 */ /* Gripper position */
+	int8_t   gripper_speed;       /* 夹爪速度 */ /* Gripper speed */
+	int8_t   gripper_current;     /* 夹爪电流 *//* Gripper current */
+	int      gripper_temp;        /* 夹爪温度 *//* Gripper temperature */
+	int      gripper_voltage;     /* 夹爪电压 *//* Gripper voltage */
 	robot_aux_state aux_state;/* 485Extended axis state */
 	EXT_AXIS_STATUS extAxisStatus[4];  /* UDP扩展轴状态 */
 	uint16_t extDIState[8];        //扩展DI输入
 	uint16_t extDOState[8];        //扩展DO输出
 	uint16_t extAIState[4];        //扩展AI输入
 	uint16_t extAOState[4];        //扩展AO输出
-	//int rbtEnableState;            //机器人使能状态--robot enable state
+	int rbtEnableState;            //机器人使能状态                robot enable state
+	double   jointDriverTorque[6];        //机器人关节驱动器扭矩    Robot joint drive torque
+	double   jointDriverTemperature[6];   //机器人关节驱动器温度    Robot joint drive temperature
+	RobotTime robotTime;           //机器人系统时间                 Robot System time
+	int softwareUpgradeState;  //机器人软件升级状态              Robot Software Upgrade State
+	uint16_t endLuaErrCode;    //末端LUA运行状态 
 	uint16_t check_sum;            /* 和校验 */
 }FR_rt_state;
 #pragma pack()
