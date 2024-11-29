@@ -132,6 +132,9 @@ void robot_command_thread::_parseROSCommandData_callback(
                 }catch(const std::out_of_range& e){
                     RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"字符串转换过程出现超范围数据");
                     res->cmd_res = "-1";
+                }catch(const std::logic_error& e){
+                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"取参数过程发生异常，请检查参数个数是否正确");
+                    res->cmd_res = "-1";
                 }
             }
         }else{
