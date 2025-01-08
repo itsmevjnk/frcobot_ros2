@@ -118,7 +118,7 @@ public:
     std::string AuxServoSetStatusID(std::string para);
 
     //脚本控制指令
-    std::string ScriptSend(std::string para);
+    std::string ScriptLoad(std::string para);
     std::string ScriptStart(std::string para);
     std::string ScriptStop(std::string para);
     std::string ScriptPause(std::string para);
@@ -131,9 +131,24 @@ public:
     std::string TractorMoveC(std::string para);
     std::string TractorStop(std::string para);
     
+    //轨迹J功能
+    std::string TrajectoryJUpLoad(std::string para);
+    std::string TrajectoryJDelete(std::string para);
+    std::string LoadTrajectoryJ(std::string para);
+    std::string MoveTrajectoryJ(std::string para);
+    std::string GetTrajectoryStartPose(std::string para);
+    std::string GetTrajectoryPointNum(std::string para);
+    std::string SetTrajectoryJSpeed(std::string para);
+
+    //LUA脚本传输功能
+    std::string LuaDownLoad(std::string para);
+    std::string LuaUpload(std::string para);
+    std::string LuaDelete(std::string para);
+    std::string GetLuaList(std::string para);
+
 
 private:
-    std::unique_ptr<FRRobot> _ptr_robot;//机械臂SDK库指针
+    std::shared_ptr<FRRobot> _ptr_robot;//机械臂SDK库指针
     int lose_connect_times = 0;
 
     //函数指针是有作用域的，所以全局函数的指针和类内成员函数的指针定义有很大不同，这里不能用typedef
@@ -220,6 +235,7 @@ private:
     {"StopMotion",&robot_command_thread::StopMotion},
     {"PointsOffsetEnable",&robot_command_thread::PointsOffsetEnable},
     {"PointsOffsetDisable",&robot_command_thread::PointsOffsetDisable},
+    {"ScriptLoad",&robot_command_thread::ScriptLoad},
     {"ScriptStart",&robot_command_thread::ScriptStart},
     {"ScriptStop",&robot_command_thread::ScriptStop},
     {"ScriptPause",&robot_command_thread::ScriptPause},
@@ -239,7 +255,18 @@ private:
     {"TractorHoming",&robot_command_thread::TractorHoming},
     {"TractorMoveL",&robot_command_thread::TractorMoveL},
     {"TractorMoveC",&robot_command_thread::TractorMoveC},
-    {"TractorStop",&robot_command_thread::TractorStop}
+    {"TractorStop",&robot_command_thread::TractorStop},
+    {"TrajectoryJUpLoad",&robot_command_thread::TrajectoryJUpLoad},
+    {"TrajectoryJDelete",&robot_command_thread::TrajectoryJDelete},
+    {"LoadTrajectoryJ",&robot_command_thread::LoadTrajectoryJ},
+    {"MoveTrajectoryJ",&robot_command_thread::MoveTrajectoryJ},
+    {"GetTrajectoryStartPose",&robot_command_thread::GetTrajectoryStartPose},
+    {"GetTrajectoryPointNum",&robot_command_thread::GetTrajectoryPointNum},
+    {"SetTrajectoryJSpeed",&robot_command_thread::SetTrajectoryJSpeed},
+    {"LuaDownLoad",&robot_command_thread::LuaDownLoad},
+    {"LuaUpload",&robot_command_thread::LuaUpload},
+    {"LuaDelete",&robot_command_thread::LuaDelete},
+    {"GetLuaList",&robot_command_thread::GetLuaList}
     };
 };
 

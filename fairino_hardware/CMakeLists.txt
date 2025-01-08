@@ -5,8 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -fPIC -g -ggdb3)
 endif()
 
-#set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 17)
 
 
@@ -45,7 +45,10 @@ add_library(
 )
 
 #add headfile source
-target_include_directories(ros2_cmd_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${CMAKE_CURRENT_SOURCE_DIR}/)
+target_include_directories(ros2_cmd_server PUBLIC 
+${CMAKE_CURRENT_SOURCE_DIR}/include/ 
+${CMAKE_CURRENT_SOURCE_DIR}/)
+
 target_include_directories(srv_test_client PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/examples/include)
 message("current source dir is: ")
 target_include_directories(fairino_hardware PUBLIC 

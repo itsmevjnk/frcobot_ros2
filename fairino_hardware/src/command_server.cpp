@@ -78,7 +78,7 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功，准备连接机械臂  版本号:V%d.%f",\
         VERSION_MAJOR,\
         VERSION_MINOR);
-    _ptr_robot = std::make_unique<FRRobot>();
+    _ptr_robot = std::make_shared<FRRobot>();
     error_t returncode = _ptr_robot->RPC(_controller_ip.c_str());
     if(returncode !=0 ){
         RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"连接机械臂失败，程序即将退出！");
@@ -117,7 +117,7 @@ void robot_command_thread::_parseROSCommandData_callback(
             func_name.c_str(),para_list.c_str());
 
         //校验参数的内容,参数部分必须是字母,数字和逗号,负号组成,出现其他字符包括空格都会导致校验失败
-        std::regex para_pattern("[A-Z|a-z|\\.\\d|\\d|,|-]*");
+        std::regex para_pattern(".*");
         if(std::regex_match(para_list,para_pattern)){//检查参数输入是否合法
             auto find_idx = _fr_function_list.find(func_name);
             if(find_idx == _fr_function_list.end()){
@@ -1685,6 +1685,22 @@ std::string robot_command_thread::AuxServoSetStatusID(std::string para){
     return std::to_string(_ptr_robot->AuxServosetStatusID(std::stoi(para)));
 }
 
+/**
+ * @brief 加载脚本
+ * @param [in] para-program_name[64]
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::ScriptLoad(std::string para){
+    //program_name[64]
+    char name[64];
+    if(para.length() < 64){
+        para.copy(name,para.length());
+        name[para.length()] = '\0';
+    }
+    return std::to_string(_ptr_robot->ProgramLoad(name));
+}
+
 
 /**
  * @brief 开始执行脚本
@@ -1728,22 +1744,19 @@ std::string robot_command_thread::ScriptResume(std::string para){
 /**
  * @brief 获取工具标定值
  * @return TCP标定值
- * @retval x,y,z,rx,ry,rz 
+ * @retval res,x,y,z,rx,ry,rz 
  */
 std::string robot_command_thread::GetTCPOffset(std::string para){
     uint8_t index = std::stoi(para);
     DescPose cartpos;
-    if(_ptr_robot->GetTCPOffset(index,&cartpos) == 0){
-        return std::to_string(cartpos.tran.x) + "," + \
-               std::to_string(cartpos.tran.y) + "," + \
-               std::to_string(cartpos.tran.z) + "," + \
-               std::to_string(cartpos.rpy.rx) + "," + \
-               std::to_string(cartpos.rpy.ry) + "," + \
-               std::to_string(cartpos.rpy.rz);
-    }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"获取工具标定值失败");
-        return "0,0,0,0,0,0";
-    }
+    int res = _ptr_robot->GetTCPOffset(index,&cartpos);
+    return std::to_string(res) + "," + \
+            std::to_string(cartpos.tran.x) + "," + \
+            std::to_string(cartpos.tran.y) + "," + \
+            std::to_string(cartpos.tran.z) + "," + \
+            std::to_string(cartpos.rpy.rx) + "," + \
+            std::to_string(cartpos.rpy.ry) + "," + \
+            std::to_string(cartpos.rpy.rz);
 }
 
 /**
@@ -1753,17 +1766,14 @@ std::string robot_command_thread::GetTCPOffset(std::string para){
  */
 std::string robot_command_thread::GetDHCompensation(std::string para){
     double dhcomp[6];
-    if(_ptr_robot->GetDHCompensation(dhcomp) == 0){
-        return std::to_string(dhcomp[0]) + "," + \
-               std::to_string(dhcomp[1]) + "," + \
-               std::to_string(dhcomp[2]) + "," + \
-               std::to_string(dhcomp[3]) + "," + \
-               std::to_string(dhcomp[4]) + "," + \
-               std::to_string(dhcomp[5]);
-    }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"获取DH补偿值失败");
-        return "0,0,0,0,0,0";
-    }
+    int res = _ptr_robot->GetDHCompensation(dhcomp);
+    return std::to_string(res) + "," + \
+            std::to_string(dhcomp[0]) + "," + \
+            std::to_string(dhcomp[1]) + "," + \
+            std::to_string(dhcomp[2]) + "," + \
+            std::to_string(dhcomp[3]) + "," + \
+            std::to_string(dhcomp[4]) + "," + \
+            std::to_string(dhcomp[5]);
 }
 
 /**
@@ -1790,6 +1800,7 @@ std::string robot_command_thread::TractorHoming(std::string para){
 
 /**
  * @brief 可移动设备直线运动
+ * @param [in] para-distance,vel
  * @return 指令执行是否成功
  * @retval 0-成功，其他-错误码 
  */
@@ -1805,6 +1816,7 @@ std::string robot_command_thread::TractorMoveL(std::string para){
 
 /**
  * @brief 可移动设备圆弧运动
+ * @param [in] para-ratio,angle,vel
  * @return 指令执行是否成功
  * @retval 0-成功，其他-错误码 
  */
@@ -1828,6 +1840,169 @@ std::string robot_command_thread::TractorStop(std::string para){
     //empty para
     return std::to_string(_ptr_robot->TractorStop());
 }
+
+
+/**
+ * @brief 上传轨迹J文件
+ * @param [in] para-filepath
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::TrajectoryJUpLoad(std::string para){
+    //string filepath
+    return std::to_string(_ptr_robot->TrajectoryJUpLoad(para));
+}
+
+/**
+ * @brief 删除轨迹J文件
+ * @param [in] para-filename
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::TrajectoryJDelete(std::string para){
+    //const string filename
+    return std::to_string(_ptr_robot->TrajectoryJDelete(para));
+}
+
+/**
+ * @brief 加载轨迹J文件
+ * @param [in] para-name[30],ovl
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::LoadTrajectoryJ(std::string para){
+    //char name[30], float ovl
+    std::list<std::string> list;
+    _splitString2List(para,list);
+    char name[30];
+    list.front().copy(name,list.front().size());list.pop_front();
+    float ovl = std::stof(list.front());
+    return std::to_string(_ptr_robot->LoadTrajectoryJ(name,ovl,1));
+}
+
+/**
+ * @brief 运行轨迹J文件
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::MoveTrajectoryJ(std::string para){
+    //empty para
+    return std::to_string(_ptr_robot->MoveTrajectoryJ());
+}
+
+/**
+ * @brief 获取轨迹J文件第一个点的初始位姿
+ * @param [in] para-name[30]
+ * @return 初始点位姿 
+ * @retval x,y,z,rx,ry,rz
+ */
+std::string robot_command_thread::GetTrajectoryStartPose(std::string para){
+    //char name[30]
+    char name[30];
+    if(para.length() <= 29){
+        para.copy(name,para.length());
+        name[para.length()] = '\0';
+    }
+    DescPose pos;
+    if(_ptr_robot->GetTrajectoryStartPose(name,&pos) == 0){
+        return std::to_string(pos.tran.x) + "," +\
+                std::to_string(pos.tran.y) + "," +\
+                std::to_string(pos.tran.z) + "," +\
+                std::to_string(pos.rpy.rx) + "," +\
+                std::to_string(pos.rpy.ry) + "," +\   
+                std::to_string(pos.rpy.rz);
+    }else{
+        return std::string("0,0,0,0,0,0");
+    }
+}
+
+/**
+ * @brief 获取轨迹J文件点数量
+ * @return 点数
+ * @retval num
+ */
+std::string robot_command_thread::GetTrajectoryPointNum(std::string para){
+    //empty para
+    int num;
+    if(_ptr_robot->GetTrajectoryPointNum(&num) == 0){
+        return std::to_string(num);
+    }else{
+        return "-1";
+    }
+}
+
+/**
+ * @brief 设置轨迹J运行速度
+ * @param [in] para-vel
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::SetTrajectoryJSpeed(std::string para){
+    //double vel
+    return std::to_string(_ptr_robot->SetTrajectoryJSpeed(std::stod(para)));
+}
+
+
+/**
+ * @brief 下载LUA脚本
+ * @param [in] para-filename,filepath
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::LuaDownLoad(std::string para){
+    //string filename,string filepath
+    std::list<std::string> list;
+    _splitString2List(para,list);
+
+    std::string name = list.front();list.pop_front();
+    std::string path = list.front();
+    return std::to_string(_ptr_robot->LuaDownLoad(name,path));
+}
+
+/**
+ * @brief 上传LUA脚本
+ * @param [in] para-filepath
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::LuaUpload(std::string para){
+    //string filepath
+    return std::to_string(_ptr_robot->LuaUpload(para));
+}
+
+/**
+ * @brief 删除LUA脚本
+ * @param [in] para-filename
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::LuaDelete(std::string para){
+    //string filename
+    return std::to_string(_ptr_robot->LuaDelete(para));
+}
+
+/**
+ * @brief 获取LUA脚本列表
+ * @param [in] para-filename
+ * @return LUA脚本名称列表
+ * @retval name1,name2,name3...
+ */
+std::string robot_command_thread::GetLuaList(std::string para){
+    std::list<std::string> list;
+    if(_ptr_robot->GetLuaList(&list) == 0){
+        std::string str = "";
+        for(auto item : list){
+            str += item;
+            str += ",";
+        }
+        return str;
+    }else{
+        return "-1";
+    }
+}
+
+
+
 
 
 
@@ -1856,7 +2031,7 @@ robot_recv_thread::robot_recv_thread(const std::string node_name):rclcpp::Node(n
         RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"创建状态反馈socket成功,开始连接控制器...");
         struct sockaddr_in tcp_client1;
         tcp_client1.sin_family = AF_INET;
-        tcp_client1.sin_port = htons(port1);//8083端口
+        tcp_client1.sin_port = htons(port1);//8081端口
         tcp_client1.sin_addr.s_addr = inet_addr(_controller_ip.c_str());
 
 
@@ -2050,7 +2225,7 @@ void robot_recv_thread::_state_recv_callback(){
             return;
         }
 
-        // std::cout << ctrl_state_datalen << " 开始取数据  " << _is_reconnect << " " << strerror(errno) << std::endl;
+        //std::cout << ctrl_state_datalen << " 开始取数据  " << _is_reconnect << " " << strerror(errno) << std::endl;
         ctrl_state_head_ptr = (uint32_t*)(recv_buff);//通过指针访问的方法取出frame_head
         if(*ctrl_state_head_ptr == 0x622F662F){//检测包头
             if(ctrl_state_datalen == _CTRL_STATE_SIZE)
