@@ -31,7 +31,7 @@
 #define MAXPIOIN	1
 #define MAXADCIN 	2
 #define MAXAUXADCIN	1
-#define _CTRL_STATE_SIZE sizeof(_CTRL_STATE)
+#define _CTRL_STATE_SIZE 8638//sizeof(_CTRL_STATE)
 /******************************/
 
 
@@ -101,6 +101,14 @@ typedef struct _WELDING_BREAK_OFF_STATE
 } WELDING_BREAK_OFF_STATE;
 
 /** 远程控制接口结构体 */
+typedef struct _REMOTE_CTRL_INTERFACE_STATE
+{
+	uint8_t robot_ctrl_mode;		/* 机器人控制模式，0：本地控制模式(手/自动模式)，1：远程控制模式 */
+	uint8_t errState;				/* 错误状态，0-运行正常，1-运行异常 */
+	uint16_t errCode;				/* 错误码 */
+}REMOTE_CTRL_INTERFACE_STATE;
+
+/** 远程控制状态结构体 */
 typedef struct _REMOTE_CTRL_INF_STATE
 {
 	uint8_t robot_ctrl_mode;		/* 机器人控制模式，0：本地控制模式(手/自动模式)，1：远程控制模式 */
@@ -109,10 +117,23 @@ typedef struct _REMOTE_CTRL_INF_STATE
 }REMOTE_CTRL_INF_STATE;
 
 /** 8081端口运动控制器状态结构体 */
+typedef struct _GRIPPER_STATUS_FB
+{
+	uint8_t isShow;                 /*前端时候展示结构体信息，0-不展示，1-展示*/
+	uint8_t gripID;                 /*夹爪ID*/
+	uint8_t gripType;               /*夹爪类型，0-平行夹爪，1-旋转夹爪*/
+	uint8_t curPos;               /*当前位置（百分比）*/
+	uint8_t curSpd;               /*当前速度（百分比）*/
+	uint8_t curTor;               /*当前扭矩（百分比）*/
+	float curRotNum;               /*当前旋转圈数*/
+	uint8_t curRotSpd;               /*当前旋转速度（百分比）*/
+	uint8_t curRotTor;               /*当前旋转力矩（百分比）*/
+}GRIPPER_STATUS_FB;
+
 typedef struct _CTRL_STATE
 {
 	char       head[7];
-   	int        frame_len;               /* 消息帧长度                                     */
+	int        frame_len;               /* 消息帧长度                                     */
 	double     runtime;                 /* 控制器启动时间,断电清零    */
 	double 	   jt_tgt_pos[6];           /* 关节1-6目标位置                */
 	double     jt_tgt_vel[6];           /* 关节1-6目标速度                */
@@ -202,7 +223,7 @@ typedef struct _CTRL_STATE
 	double     weldTrackSpeed;          /** 焊缝跟踪速度   mm/s */
 	uint8_t    drag_alarm;              /** 拖动警告，当前处于自动模式,0-不报警，1-报警 ，2-位置反馈异常不切换 */
 	double     LoadIdentifyData[4];     /** 负载辨识结果（weight,x,y,z） */
-	int        conveyor_encoder_pos;    /** 传送带编码器位置 */
+	int       conveyor_encoder_pos;    /** 传送带编码器位置 */
 	double     conveyor_speed;          /** 传送带速度 mm/s */
 	double     conveyorWorkPiecePos;    /** 传送带工件当前位置，单位mm */
 	uint8_t    btn_box_stop_signal;     /** 按钮盒急停信号 ，1-按下急停*/
@@ -252,43 +273,44 @@ typedef struct _CTRL_STATE
     float      welding_current;                       /** 焊接电流 */
     AUXSERVO_STATE auxservo_state;                    /** 外部伺服状态 */
     WELDING_BREAK_OFF_STATE welding_state;            /* 焊接状态 */
-	REMOTE_CTRL_INF_STATE remote_ctrl_state;          /* 远程控制状态 */
-	uint8_t    safety_data_state;                     /* 安全数据状态标志，0-正常，1-异常 */
+	REMOTE_CTRL_INF_STATE remote_ctrl_state;          /** 远程控制状态*/
+    uint8_t    safety_data_state;                     /* 安全数据状态标志，0-正常，1-异常 */
 	char       curPointTableName[128];				  /* 当前应用的点位表信息 */
-	int        jog_status;                            /* 点动运动状态 */
+	int        jog_state;                             /** 点动运动状态*/
 	uint16_t modbusSlaveDI[8];      				  /** 从站DI0 - DI128 */
 	uint16_t modbusSlaveDO[8];      				  /** 从站DO0 - DI128 */
 	int modbusSlaveAI[64];          				  /** 从站AI uint16 AI0-AI15  int16 AI16-AI31  float AI32-AI63 */
 	int modbusSlaveAO[64];          				  /** 从站AO uint16 AO0-AO15  int16 AO16-AO31  float AO32-AO63 */
 	uint8_t modbusMasterConnectState;     			  /** 0-7位对应0-7主站连接状态  0-未连接   1-连接 */
 	float modbusMasterValue[8][128]; 	   			  /** modbusMaster的寄存器当前数值，每128个值为1个ModbusMaster寄存器的所有值 */
-	uint8_t shoulderConfig;                              /* 肩关节配置，0：左肩配置，1：右肩配置*/
-	uint8_t elbowConfig;                                 /* 肘关节配置，0：肘向下配置，1：肘向上配置*/
-	uint8_t wristConfig;                                 /* 腕关节配置，0：腕向下配置，1：腕向上配置*/
-	uint32_t motionCount;                                /* 运动计数 */
+	uint8_t shoulderConfig;                           /** 肩关节配置，0-左肩配置，1-右肩配置*/
+	uint8_t elbowConfig;                              /** 肘关节配置，0-肘向下配置，1-肘向上配置*/
+	uint8_t wristConfig;                              /** 腕关节配置，0-腕向下配置，1-腕向上配置*/
+	uint32_t motionCount;                             /** 运动计数*/
 	double     flange_cur_pos[6];                     /** 末端法兰当前位姿 */
 	uint16_t endLuaErrCode;                           /** 末端Lua文件异常状态 0-正常；1-异常 */
 	uint8_t mdbsSlaveConnect; 						  /** Modbus从站连接状态 0-未连接；1-已连接 */
 	uint16_t mdbsSlaveFuncDIState[6]; 				  /** Modbus从站功能DI输入状态；bit0-bit10分别对应“暂停”  ~  “清除所有故障” */
 	int mdbsSlaveDOCtrlDIState; 					  /** Modbus从站控制DO输出功能的DI输入状态，bit0-bit7为DO0-DO7；bit8-bit15为CO0-CO7；bit16-bit17为工具DO0-DO1 */
-	int safetyBoardComSendCount;                      /* 安全板通信发送数据包计数 */
-	int safetyBoardComRecvCount;                      /* 安全板通信接收数据包计数 */
-	int toolNoSRL;                                    /* 工具编号，[-1~19] */
-	int frameNOSRL;                                   /* 工件编号，[-1~19] */
-	double robposCartTF[6];                           /* 对应工具工件下的笛卡尔位姿 */
-	double robposJointTF[6];                          /* 对应工具工件下的关节位置 */
-	uint8_t turn_num[4];                              /* 关节圈数 */
-	uint8_t robot_config;                             /* 关节配置 */
+	int safetyBoardComSendCount;                      /** 安全板通信发送数据包计数*/
+	int safetyBoardComRecvCount;                      /** 安全板通信接收数据包计数*/
+	int toolNoSRL;                                    /** 工具编号，[-1~19]*/
+	int frameNoSRL;                                   /** 工件编号，[-1~19]*/
+	double robposCartTF[6];                           /** 对应工具工件下的笛卡尔位姿*/
+	double robposJointTF[6];                          /** 对应工具工件下的关节位置*/
+	uint8_t turn_num[4];                              /** 关节圈数*/
+	uint8_t robot_config;                             /** 关节配置*/
 	uint8_t  forceSensorErrState;                     /** 力传感器连接超时故障；bit0-bit1对应力传感器ID1-ID2 */
 	uint8_t ctrlOpenLuaRunningState;  				  /** 控制器开放协议运行状态，bit0-bit3对应协议编号0-3的运行状态，0-未运行，1-运行中 */
 	uint8_t ctrlOpenLuaErrCode[4];   				  /** 4个控制器外设协议错误码(500错误码)；*/
 	uint8_t safetyBoxSignal[6];                       /** 按钮盒按钮信号 */
 	float jointIdentifyData;  						  /** 单关节模型辨识时实时曲线显示数据 */
-	uint8_t UDPConnState;                             /** UDP通讯连接状态：0-连接断开；1-连接成功 */ 
-	float user_var[128];							  /** 用户变量，默认值0 */
-	uint8_t run_status[8];							  /** 后台程序线程状态，0停止（未配置），1运行，2暂停 */
+	uint8_t UDPConnState;                             /** UDP通讯连接状态，0-断开连接，1-连接成功*/
+	float user_var[128];                              /** 用户变量，默认值0*/
+	uint8_t run_status[8];                            /** 后台程序线程状态，0-停止（未配置），1-运行，2-暂停*/
+	GRIPPER_STATUS_FB gripper_status;                 /** 夹爪状态反馈结构体*/
 	char end[7];
-} CTRL_STATE;
+}CTRL_STATE;
 /***********end 8081 data*******************/
 
 //	uint16_t	modbusSlaveDI[8];		/** 从站 DI0-DI127 */
@@ -355,30 +377,6 @@ typedef struct _FR_nonrt_state{
 
 
 /**************20004端口数据结构*************/
-typedef struct RobotTime
-{
-	uint16_t year = 0;
-	uint8_t mouth = 0;
-	uint8_t day = 0;
-	uint8_t hour = 0;
-	uint8_t minute = 0;
-	uint8_t second = 0;
-	uint16_t millisecond = 0;
-
-	RobotTime()
-	{
-
-	}
-
-	std::string ToString()
-	{
-		std::string rtn = std::to_string(year) + "-" + std::to_string(mouth) + "-" + std::to_string(day) + " " + std::to_string(hour) + ":" + std::to_string(minute) + ":" + std::to_string(second) + "." + std::to_string(millisecond);
-		
-		return rtn;
-	}
-
-}RobotTime;
-
 typedef struct ROBOT_AUX_STATE{
 	uint8_t servoId;
 	int servoErrCode;
@@ -405,13 +403,13 @@ typedef struct _EXT_AXIS_STATUS{
 
 
 typedef struct _rt_state{
-	uint16_t frame_head;
-	uint8_t  frame_cnt;
-	uint16_t data_len;
-	uint8_t  program_state;  //Program running status, 1- stop;2- Run; 3- Pause
-	uint8_t  robot_state;//Robot motion state, 1- stop; 2- Run; 3- Pause; 4- Drag  
-	int      main_code;
-	int      sub_code;
+    uint16_t frame_head;
+    uint8_t  frame_cnt;
+    uint16_t data_len;
+    uint8_t  program_state;  //Program running status, 1- stop;2- Run; 3- Pause
+    uint8_t  robot_state;//Robot motion state, 1- stop; 2- Run; 3- Pause; 4- Drag  
+    int      main_code;
+    int      sub_code;
 	uint8_t  robot_mode;//Robot mode, 0-automatic mode; 1- Manual mode
 	double   jt_cur_pos[6];//Current joint position
 	double   tl_cur_pos[6];//Current tool position
@@ -442,28 +440,39 @@ typedef struct _rt_state{
 	int      mc_queue_len; //Motion queue length
 	uint8_t  collisionState;//Collision detection, 1- collision; 0- No collision
 	int      trajectory_pnum; //Track point number
-	uint8_t  safety_stop0_state;  /* 安全停止信号SI0 *//* Safety stop signal SI0 */
-	uint8_t  safety_stop1_state;  /* 安全停止信号SI1 *//* Safety stop signal SI1 */
-	uint8_t  gripper_fault_id;    /* 错误夹爪号 */ /* gripper error number */
-	uint16_t gripper_fault;       /* 夹爪故障 *//* Gripper fault */
-	uint16_t gripper_active;      /* 夹爪激活状态 *//* Gripper active status */
-	uint8_t  gripper_position;    /* 夹爪位置 */ /* Gripper position */
-	int8_t   gripper_speed;       /* 夹爪速度 */ /* Gripper speed */
-	int8_t   gripper_current;     /* 夹爪电流 *//* Gripper current */
-	int      gripper_temp;        /* 夹爪温度 *//* Gripper temperature */
-	int      gripper_voltage;     /* 夹爪电压 *//* Gripper voltage */
+    uint8_t  safety_stop0_state;  /* 安全停止信号SI0 *//* Safety stop signal SI0 */
+    uint8_t  safety_stop1_state;  /* 安全停止信号SI1 *//* Safety stop signal SI1 */
+    uint8_t  gripper_fault_id;    /* 错误夹爪号 */ /* gripper error number */
+    uint16_t gripper_fault;       /* 夹爪故障 *//* Gripper fault */
+    uint16_t gripper_active;      /* 夹爪激活状态 *//* Gripper active status */
+    uint8_t  gripper_position;    /* 夹爪位置 */ /* Gripper position */
+    int8_t   gripper_speed;       /* 夹爪速度 */ /* Gripper speed */
+    int8_t   gripper_current;     /* 夹爪电流 *//* Gripper current */
+    int      gripper_tmp;        /* 夹爪温度 *//* Gripper temperature *//////////////
+    int      gripper_voltage;     /* 夹爪电压 *//* Gripper voltage */
 	robot_aux_state aux_state;/* 485Extended axis state */
 	EXT_AXIS_STATUS extAxisStatus[4];  /* UDP扩展轴状态 */
 	uint16_t extDIState[8];        //扩展DI输入
 	uint16_t extDOState[8];        //扩展DO输出
 	uint16_t extAIState[4];        //扩展AI输入
 	uint16_t extAOState[4];        //扩展AO输出
-	int rbtEnableState;            //机器人使能状态                robot enable state
-	double   jointDriverTorque[6];        //机器人关节驱动器扭矩    Robot joint drive torque
-	double   jointDriverTemperature[6];   //机器人关节驱动器温度    Robot joint drive temperature
-	RobotTime robotTime;           //机器人系统时间                 Robot System time
-	int softwareUpgradeState;  //机器人软件升级状态              Robot Software Upgrade State
-	uint16_t endLuaErrCode;    //末端LUA运行状态 
+	int rbtEnableState;            //机器人使能状态--robot enable state
+    double jointDriverTorque[6];   //关节驱动器当前扭矩
+    double jointDriverTemperature[6];//关节驱动器当前温度
+    uint16_t year;                  //年
+    uint8_t mouth;                  //月
+    uint8_t day;                  //日
+    uint8_t hour;                  //时
+    uint8_t minute;                  //分
+    uint8_t second;                  //秒
+    uint16_t millisecond;                  //毫秒
+    int softwareUpgradeState;        //机器人软件升级状态
+    uint16_t endLuaErrCode;         //末端LUA运行状态
+	uint16_t cl_analog_output[2];  //控制箱模拟量输出				  Control box analog output
+	uint16_t tl_analog_output;     //工具模拟量输出				  Tool analog output
+	float gripperRotNum;           //旋转夹爪当前旋转圈数			  The current number of turns of the rotating clamp
+	uint8_t gripperRotSpeed;       //旋转夹爪当前旋转速度百分比	  Percentage of the current rotation speed of the rotary clamp
+	uint8_t gripperRotTorque;	   //旋转夹爪当前旋转力矩百分比	  Percentage of the current rotating torque of the rotating clamp
 	uint16_t check_sum;            /* 和校验 */
 }FR_rt_state;
 #pragma pack()
