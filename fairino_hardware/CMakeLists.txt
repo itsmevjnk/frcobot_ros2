@@ -98,17 +98,17 @@ file(MAKE_DIRECTORY
 )
 
 file(COPY_FILE "libfairino/lib/libfairino.so.2.1.4" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2.1.4" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.4" 
 )
 
 file(CREATE_LINK 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2.1.4" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.4" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2" 
 SYMBOLIC)
 
 file(CREATE_LINK 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so" 
 SYMBOLIC)
 
 

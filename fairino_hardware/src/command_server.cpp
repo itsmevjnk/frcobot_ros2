@@ -75,10 +75,11 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
 
     /********************************尝试使用SDK库连接机械臂******************************************/
     _controller_ip = CONTROLLER_IP;//控制器默认ip地址
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功，准备连接机械臂  版本号:V%d.%f",\
-        VERSION_MAJOR,\
-        VERSION_MINOR);
-    _ptr_robot = std::make_shared<FRRobot>();
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功,准备连接机械臂");
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"fairino_hardware版本号:V%d.%f,机械臂软件版本号:V%d.%f",\
+        VERSION_MAJOR,VERSION_MINOR,VERSION_ROBOT_MARJOR,VERSION_ROBOT_MINOR);
+    int mysize = sizeof(FRRobot);
+    _ptr_robot = new FRRobot();
     error_t returncode = _ptr_robot->RPC(_controller_ip.c_str());
     if(returncode !=0 ){
         RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"连接机械臂失败，程序即将退出！");
@@ -207,6 +208,19 @@ void robot_command_thread::_fillDescTran(std::list<std::string>& data,DescTran& 
     trans.x = std::stod(data.front().c_str());data.pop_front();
     trans.y = std::stod(data.front().c_str());data.pop_front();
     trans.z = std::stod(data.front().c_str());data.pop_front();
+}
+
+
+/**
+ * @brief 私有函数，用于将list中开头6个数据填充到JointPos对象中
+ * @param [in] data-list数据，用于存储字符串列表
+ * @param [out] pos-输出的JointPos对象
+ */
+void robot_command_thread::_fillJointPose(std::list<std::string>& data,JointPos pos){
+    for(int i=0;i<6;i++){
+        pos.jPos[i] = std::stod(data.front().c_str());
+        data.pop_front();
+    }
 }
 
 
@@ -540,13 +554,19 @@ std::string robot_command_thread::SetWObjList(std::string para){
 
 /**
  * @brief 设置末端负载重量
- * @param [in] para-重量值，单位kg
+ * @param [in] para-loadNum,weight
  * @return 指令执行是否成功
  * @retval 0-成功，其他-错误码 
  */
 std::string robot_command_thread::SetLoadWeight(std::string para){
-    //float weight
-    return std::to_string(_ptr_robot->SetLoadWeight(std::stof(para)));
+    //int loadNum,float weight
+    std::list<std::string> list;
+    _splitString2List(para,list);
+
+    int id = std::stoi(list.front().c_str());list.pop_front();
+    float weight = std::stof(list.front().c_str());
+    //return std::to_string(_ptr_robot->SetLoadWeight(id));
+    return std::to_string(_ptr_robot->SetLoadWeight(id,weight));//V378
 }
 
 /**
@@ -586,7 +606,7 @@ std::string robot_command_thread::SetRobotInstallAngle(std::string para){
     //double yangle, double zangle
     std::list<std::string> list;
     _splitString2List(para,list);
-    double yangle = std::stod(list.front().c_str());
+    double yangle = std::stod(list.front().c_str());list.pop_front();
     double zangle = std::stod(list.front().c_str());
     return std::to_string(_ptr_robot->SetRobotInstallAngle(yangle,zangle));
 }
@@ -619,14 +639,20 @@ std::string robot_command_thread::SetAnticollision(std::string para){
 
 /**
  * @brief 设置防碰撞等级
- * @param [in] para-strategy碰撞等级
+ * @param [in] para-strategy,safedisntance,safevel
  * @return 指令执行是否成功
  * @retval 0-成功，其他-错误码 
  */
 std::string robot_command_thread::SetCollisionStrategy(std::string para){
-    //int strategy
+    //int strategy int safetime,int safedistance,int safevel,int* safemargin
+    std::list<std::string> list;
+    _splitString2List(para,list);
+    int strategy = std::stoi(list.front().c_str());list.pop_front();
+    int safedistance = std::stoi(list.front().c_str());list.pop_front();
+    int safevel = std::stoi(list.front().c_str());
     int margin[6]{1,1,1,1,1,1};
-    return std::to_string(_ptr_robot->SetCollisionStrategy(std::stoi(para),1000,150,margin));
+    //return std::to_string(_ptr_robot->SetCollisionStrategy(std::stoi(para),1000,safedistance,margin));
+    return std::to_string(_ptr_robot->SetCollisionStrategy(std::stoi(para),1000,safedistance,safevel,margin));//V378
 }
 
 /**
@@ -1742,6 +1768,39 @@ std::string robot_command_thread::ScriptResume(std::string para){
 }
 
 /**
+ * @brief 获取fairino_hardware版本号
+ * @return 错误码及版本号
+ * @retval res,version
+ */
+std::string robot_command_thread::GetVersion(std::string para){
+    std::string ver = "V" + std::to_string(VERSION_MAJOR) + "." + \
+        std::to_string(VERSION_MINOR);
+    return std::string("0," + ver);
+}
+
+/**
+ * @brief 获取机械臂版本号
+ * @return 错误码及版本号
+ * @retval res,sofewareversion
+ */
+std::string robot_command_thread::GetRobotVersion(std::string para){
+    char robotmodel[64],softversion[64],ctrversion[64];
+    int res = _ptr_robot->GetSoftwareVersion(robotmodel,softversion,ctrversion);
+    return std::string(std::to_string(res) + "," + std::string(softversion));
+}
+
+/**
+ * @brief 获取机械臂控制器版本号
+ * @return 错误码及版本号
+ * @retval res,sofewareversion
+ */
+std::string robot_command_thread::GetControllerVersion(std::string para){
+    char robotmodel[64],softversion[64],ctrversion[64];
+    int res = _ptr_robot->GetSoftwareVersion(robotmodel,softversion,ctrversion);
+    return std::string(std::to_string(res) + "," + std::string(ctrversion));
+}
+
+/**
  * @brief 获取工具标定值
  * @return TCP标定值
  * @retval res,x,y,z,rx,ry,rz 
@@ -1775,6 +1834,24 @@ std::string robot_command_thread::GetDHCompensation(std::string para){
             std::to_string(dhcomp[4]) + "," + \
             std::to_string(dhcomp[5]);
 }
+
+/**
+ * @brief 获取焊接中断状态
+ * @return 焊接中断状态结构体信息
+ * @retval breakOffState,weldArcState
+ */
+std::string robot_command_thread::GetWeldingBreakOffState(std::string para){
+    // static WELDING_BREAKOFF_STATE state;
+    // int res = _ptr_robot->GetRobotRealTimeState(&_robot_realtime_state);
+    // state = _robot_realtime_state.weldingBreakOffState;
+    // RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"焊接状态参数:%i,%i",\
+    //     _robot_realtime_state.weldingBreakOffState.breakOffState,
+    //     _robot_realtime_state.weldingBreakOffState.weldArcState);
+    // return std::string(std::to_string(res) + "," + std::to_string(state.breakOffState) + \
+    //         "," + std::to_string(state.weldArcState));
+}
+
+
 
 /**
  * @brief 可移动设备使能
@@ -2001,10 +2078,130 @@ std::string robot_command_thread::GetLuaList(std::string para){
     }
 }
 
+/**
+ * @brief 根据点位信息计算工具坐标系
+ * @param [in] method,pos
+ * @return 工具坐标系结果及错误码
+ * @retval errorcode,x,y,z,rx,ry,rz
+ */
+std::string robot_command_thread::ComputeToolCoordWithPoints(std::string para){
+    //int method,Jointpos pos
+    std::list<std::string> list;
+    _splitString2List(para,list);
 
+    int method = std::stoi(list.front().c_str());list.pop_front();
+    JointPos pos;
+    _fillJointPose(list,pos);
+    DescPose cartpos;
+    int res = _ptr_robot->ComputeToolCoordWithPoints(method,&pos,cartpos);
+    return std::string(std::to_string(res) + "," + std::to_string(cartpos.tran.x) + "," + \
+            std::to_string(cartpos.tran.y) + "," + std::to_string(cartpos.tran.z) + "," + \
+            std::to_string(cartpos.rpy.rx) + "," + std::to_string(cartpos.rpy.ry) + "," + \
+            std::to_string(cartpos.rpy.rz));
+}
 
+/**
+ * @brief 根据点位信息计算工件坐标系
+ * @param [in] method,pos,reframe
+ * @return 工件坐标系结果及错误码
+ * @retval errorcode,x,y,z,rx,ry,rz
+ */
+std::string robot_command_thread::ComputeWObjCoordWithPoints(std::string para){
+    //int method,descpos pos,int refframe
+    std::list<std::string> list;
+    _splitString2List(para,list);
 
+    int method = std::stoi(list.front().c_str());list.pop_front();
+    DescPose posin,posout;
+    _fillDescPose(list,posin);
+    int reframe = std::stoi(list.front().c_str());
+    int res = _ptr_robot->ComputeWObjCoordWithPoints(method,&posin,reframe,posout);
+    return std::string(std::to_string(res) + "," + std::to_string(posout.tran.x) + "," + \
+            std::to_string(posout.tran.y) + "," + std::to_string(posout.tran.z) + "," + \
+            std::to_string(posout.rpy.rx) + "," + std::to_string(posout.rpy.ry) + "," + \
+            std::to_string(posout.rpy.rz));
+}
 
+/**
+ * @brief 设置机器人焊接电弧意外中断检测参数
+ * @param [in] checkEnable 是否使能检测；0-不使能；1-使能
+ * @param [in] arcInterruptTimeLength 电弧中断确认时长(ms)
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::WeldingSetCheckArcInterruptionParam(std::string para){
+    std::list<std::string> list;
+    _splitString2List(para,list);
+
+    int checkenable = std::stoi(list.front().c_str());list.pop_front();
+    int arcInterruptTimeLength  = std::stoi(list.front().c_str());
+    return std::to_string(_ptr_robot->WeldingSetCheckArcInterruptionParam(\
+            checkenable,arcInterruptTimeLength));
+}
+
+/**
+ * @brief 获取机器人焊接电弧意外中断检测参数
+ * @return 错误码及返回参数
+ * @retval errorcode,checkenable,arcInterruptTimeLength
+ */
+std::string robot_command_thread::WeldingGetCheckArcInterruptionParam(std::string para){
+    int checkenable,arcInterruptTimeLength;
+    int res = _ptr_robot->WeldingGetCheckArcInterruptionParam(&checkenable,&arcInterruptTimeLength);
+    return std::string(std::to_string(res) + "," + std::to_string(checkenable) + "," \
+            + std::to_string(arcInterruptTimeLength));
+}
+
+/**
+ * @brief 设置机器人焊接中断恢复参数
+ * @param [in] enable 是否使能焊接中断恢复
+ * @param [in] length 焊缝重叠距离(mm)
+ * @param [in] velocity 机器人回到再起弧点速度百分比(0-100)
+ * @param [in] moveType 机器人运动到再起弧点方式；0-LIN；1-PTP
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码
+ */
+std::string robot_command_thread::WeldingSetReWeldAfterBreakOffParam(std::string para){
+    std::list<std::string> list;
+    _splitString2List(para,list);
+
+    int enable = std::stoi(list.front().c_str());list.pop_front();
+    double length = std::stod(list.front().c_str());list.pop_front();
+    double velocity = std::stod(list.front().c_str());list.pop_front();
+    int moveType = std::stoi(list.front().c_str());
+    return std::to_string(_ptr_robot->WeldingSetReWeldAfterBreakOffParam(enable,length,velocity,moveType));
+}
+
+/**
+ * @brief 获取机器人焊接中断恢复参数
+ * @return 错误码及返回参数
+ * @retval errorcode,enable,length,velocity,movetype
+ */
+std::string robot_command_thread::WeldingGetReWeldAfterBreakOffParam(std::string para){
+    int enable,moveType;
+    double length,velocity;
+    int res = _ptr_robot->WeldingGetReWeldAfterBreakOffParam(&enable,&length,&velocity,&moveType);
+    return std::string(std::to_string(res) + "," + std::to_string(enable) + "," + \
+            std::to_string(length) + "," + std::to_string(velocity) + "," + \
+            std::to_string(moveType));
+}
+
+/**
+ * @brief 开始机器人焊接电弧意外中断
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::WeldingStartReWeldAfterBreakOff(std::string para){
+    return std::to_string(_ptr_robot->WeldingStartReWeldAfterBreakOff());
+}
+
+/**
+ * @brief 停止机器人焊接电弧意外中断
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::WeldingAbortWeldAfterBreakOff(std::string para){
+    return std::to_string(_ptr_robot->WeldingAbortWeldAfterBreakOff());
+}
 
 
 
@@ -2351,6 +2548,10 @@ void robot_recv_thread::_state_recv_callback(){
             msg.ft_tz_data = ctrl_state.FT_data[5];
             msg.ft_actstatus = ctrl_state.FT_ActStatus;
             
+            msg.weldbreakoffstate = ctrl_state.welding_state.breakOffState;
+            msg.weldarcstate = ctrl_state.welding_state.weldArcState;
+            
+            msg.version = "V3.1-20250122";
             msg.timestamp = RCL_NS_TO_S(cur_clock.now().nanoseconds());
             for(int i=0;i<6;i++){
                 msg.safetyboxsig[i] = ctrl_state.safetyBoxSignal[i];
