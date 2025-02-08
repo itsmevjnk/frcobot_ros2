@@ -51,7 +51,10 @@ uint8 emg
 uint8[6] safetyboxsig #V2.1 added
 uint8 robot_motion_done
 uint8 grip_motion_done
+uint8 weldbreakoffstate
+uint8 weldarcstate
 uint8 error_code
 uint8 check_sum
 uint64 timestamp
+string version
 
