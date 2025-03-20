@@ -53,6 +53,9 @@ uint8 robot_motion_done
 uint8 grip_motion_done
 uint8 weldbreakoffstate
 uint8 weldarcstate
+float64 welding_voltage
+float64 welding_current
+float64 weldtrackspeed
 uint8 error_code
 uint8 check_sum
 uint64 timestamp

@@ -76,10 +76,9 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
     /********************************尝试使用SDK库连接机械臂******************************************/
     _controller_ip = CONTROLLER_IP;//控制器默认ip地址
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功,准备连接机械臂");
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"fairino_hardware版本号:V%d.%f,机械臂软件版本号:V%d.%f",\
-        VERSION_MAJOR,VERSION_MINOR,VERSION_ROBOT_MARJOR,VERSION_ROBOT_MINOR);
-    int mysize = sizeof(FRRobot);
-    _ptr_robot = new FRRobot();
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"fairino_hardware版本号:V%i.%i.%i,机械臂软件版本号:V%i.%i.%i",\
+        VERSION_MAJOR,VERSION_MINOR,VERSION_MINOR2,VERSION_ROBOT_MARJOR,VERSION_ROBOT_MINOR,VERSION_ROBOT_MINOR2);
+    _ptr_robot = std::make_unique<FRRobot>();
     error_t returncode = _ptr_robot->RPC(_controller_ip.c_str());
     if(returncode !=0 ){
         RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"连接机械臂失败，程序即将退出！");
@@ -1773,20 +1772,30 @@ std::string robot_command_thread::ScriptResume(std::string para){
  * @retval res,version
  */
 std::string robot_command_thread::GetVersion(std::string para){
-    std::string ver = "V" + std::to_string(VERSION_MAJOR) + "." + \
-        std::to_string(VERSION_MINOR);
+    std::string ver = "fairino_hardware:V" + std::to_string(VERSION_MAJOR) + "." + \
+        std::to_string(VERSION_MINOR) + "." + std::to_string(VERSION_MINOR2);
     return std::string("0," + ver);
 }
 
 /**
+ * @brief 获取fairino_msg版本号
+ * @return 错误码及版本号
+ * @retval res,version
+ */
+std::string robot_command_thread::GetMsgVersion(std::string para){
+    std::string ver = "fairino_msgs:V" + std::to_string(VERSION_MSG_MARJOR) + "." + \
+        std::to_string(VERSION_MSG_MINOR) + "." + std::to_string(VERSION_MSG_MINOR2);
+    return std::string("0," + ver);
+}
+/**
  * @brief 获取机械臂版本号
  * @return 错误码及版本号
- * @retval res,sofewareversion
+ * @retval res,softwareversion
  */
 std::string robot_command_thread::GetRobotVersion(std::string para){
     char robotmodel[64],softversion[64],ctrversion[64];
     int res = _ptr_robot->GetSoftwareVersion(robotmodel,softversion,ctrversion);
-    return std::string(std::to_string(res) + "," + std::string(softversion));
+    return std::string(std::to_string(res) + ",robot:" + std::string(softversion));
 }
 
 /**
@@ -1797,7 +1806,7 @@ std::string robot_command_thread::GetRobotVersion(std::string para){
 std::string robot_command_thread::GetControllerVersion(std::string para){
     char robotmodel[64],softversion[64],ctrversion[64];
     int res = _ptr_robot->GetSoftwareVersion(robotmodel,softversion,ctrversion);
-    return std::string(std::to_string(res) + "," + std::string(ctrversion));
+    return std::string(std::to_string(res) + ",robot_controller:" + std::string(ctrversion));
 }
 
 /**
@@ -2044,7 +2053,9 @@ std::string robot_command_thread::LuaDownLoad(std::string para){
  */
 std::string robot_command_thread::LuaUpload(std::string para){
     //string filepath
-    return std::to_string(_ptr_robot->LuaUpload(para));
+    int res = _ptr_robot->LuaUpload(para);
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"上传LUA脚本调用SDK的结果为:%i",res);
+    return std::to_string(res);
 }
 
 /**
@@ -2250,7 +2261,7 @@ robot_recv_thread::robot_recv_thread(const std::string node_name):rclcpp::Node(n
 
             _state_publisher = this->create_publisher<robot_feedback_msg>(
                 "nonrt_state_data",
-                10
+                1
             );
             _locktimer = this->create_wall_timer(100ms,std::bind(&robot_recv_thread::_state_recv_callback,this));//创建一个定时器任务用于获取非实时状态数据,触发间隔为100ms
         }
@@ -2531,7 +2542,7 @@ void robot_recv_thread::_state_recv_callback(){
             msg.abnormal_stop = ctrl_state.abnormal_stop;
             msg.prg_name = std::string(ctrl_state.curLuaFileName);
             msg.prg_total_line = 0;
-            msg.prg_cur_line = 0;
+            msg.prg_cur_line = ctrl_state.line_number;
 
             msg.dgt_output_h = ctrl_state.cl_dgt_output_h;
             msg.dgt_output_l = ctrl_state.cl_dgt_output_l;
@@ -2550,8 +2561,13 @@ void robot_recv_thread::_state_recv_callback(){
             
             msg.weldbreakoffstate = ctrl_state.welding_state.breakOffState;
             msg.weldarcstate = ctrl_state.welding_state.weldArcState;
+            msg.weldtrackspeed = ctrl_state.weldTrackSpeed;
+            msg.welding_voltage = ctrl_state.welding_voltage;
+            msg.welding_current = ctrl_state.welding_current;
             
-            msg.version = "V3.1-20250122";
+            //V3.0.2 - 20250212新增weldingvlotage wledingcurrent和weldtrackspped项
+            msg.version = "V" + std::to_string(VERSION_MSG_MARJOR) + "." + \
+                        std::to_string(VERSION_MSG_MINOR) + std::to_string(VERSION_MSG_MINOR2);
             msg.timestamp = RCL_NS_TO_S(cur_clock.now().nanoseconds());
             for(int i=0;i<6;i++){
                 msg.safetyboxsig[i] = ctrl_state.safetyBoxSignal[i];

@@ -38,6 +38,7 @@ public:
 
     //信息获取类
     std::string GetVersion(std::string para);
+    std::string GetMsgVersion(std::string para);
     std::string GetRobotVersion(std::string para);
     std::string GetControllerVersion(std::string para);
     std::string GetTCPOffset(std::string para);
@@ -162,7 +163,7 @@ public:
     std::string WeldingAbortWeldAfterBreakOff(std::string para);
 
 private:
-    FRRobot* _ptr_robot;//机械臂SDK库指针
+    std::unique_ptr<FRRobot> _ptr_robot;//机械臂SDK库指针
     ROBOT_STATE_PKG _robot_realtime_state;//从SDK获取的机械臂实时状态结构体
     int lose_connect_times = 0;
 
@@ -199,6 +200,7 @@ private:
     {"CARTPoint",&robot_command_thread::defCartPosition},
     {"GET",&robot_command_thread::getVariable},
     {"GetVersion",&robot_command_thread::GetVersion},
+    {"GetMsgVersion",&robot_command_thread::GetMsgVersion},
     {"GetRobotVersion",&robot_command_thread::GetRobotVersion},
     {"GetControllerVersion",&robot_command_thread::GetControllerVersion},
     {"GetWeldingBreakOffState",&robot_command_thread::GetWeldingBreakOffState},
