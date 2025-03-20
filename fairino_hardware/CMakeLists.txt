@@ -5,8 +5,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -fPIC -g -ggdb3)
 endif()
 
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 17)
 
 
@@ -27,7 +27,7 @@ file(GLOB EXP_SRC_DIR ./examples/src/*.cpp)
 
 #compile
 file(CREATE_LINK 
-"${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2.1.4"
+"${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2.1.7"
 "${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2"
 SYMBOLIC)
 
@@ -96,12 +96,12 @@ file(MAKE_DIRECTORY
 "${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}"
 )
 
-file(COPY_FILE "libfairino/lib/libfairino.so.2.1.4" 
-"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.4" 
+file(COPY_FILE "libfairino/lib/libfairino.so.2.1.7" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.7" 
 )
 
 file(CREATE_LINK 
-"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.4" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.7" 
 "${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2" 
 SYMBOLIC)
 

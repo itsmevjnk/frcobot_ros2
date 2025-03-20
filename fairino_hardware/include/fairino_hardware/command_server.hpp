@@ -310,7 +310,7 @@ public:
 private:
     int setKeepAlive(int fd, int idle_time, int interval_time, int probe_times);
     int _socketfd1;
-    int _is_reconnect = 0;              //1 尝试重连中；
+    std::atomic_bool _reconnect_flag;
     int _robot_recv_exit = 0;           //类即将析构，通知重连线程退出.
     std::thread _reconnect_thread;
     void _try_to_reconnect();
