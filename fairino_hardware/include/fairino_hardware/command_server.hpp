@@ -99,7 +99,7 @@ public:
     std::string MoveL(std::string para);
     std::string MoveC(std::string para);
     std::string Circle(std::string para);
-    //std::string ServoJ(JointPos *joint_pos, float acc, float vel, float cmdT, float filterT, float gain);
+    std::string ServoJ(std::string para);
     std::string SplineStart(std::string para);
     std::string SplinePTP(std::string para);
     std::string SplineEnd(std::string para);

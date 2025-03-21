@@ -1354,6 +1354,31 @@ std::string robot_command_thread::Circle(std::string para){
 }
 
 /**
+ * @brief 机械臂关节伺服指令，该指令对于实时性要求较高
+ * @param [in] jntpos-六个关节的位置指令，单位为度，eaxispos-4个外部轴位置指令，单位为度，deltaT-指令时间间隔，范围0.001~0.0016
+ * @return 指令执行是否成功
+ * @retval 0-成功，其他-错误码 
+ */
+std::string robot_command_thread::ServoJ(std::string para){
+    std::list<std::string> datalist;
+    _splitString2List(para,datalist);
+
+    JointPos jpos;
+    _fillJointPose(datalist,jpos);
+
+    ExaxisPos eaxispos;
+    eaxispos.ePos[0] = std::stod(datalist.front().c_str());datalist.pop_front();
+    eaxispos.ePos[1] = std::stod(datalist.front().c_str());datalist.pop_front();
+    eaxispos.ePos[2] = std::stod(datalist.front().c_str());datalist.pop_front();
+    eaxispos.ePos[3] = std::stod(datalist.front().c_str());datalist.pop_front();
+
+    int deltaT = std::stod(datalist.front().c_str());
+    return std::to_string(_ptr_robot->ServoJ(&jpos,&eaxispos,0,0,deltaT,0,0));
+}
+
+
+
+/**
  * @brief 机械臂关节空间样条运动开始
  * @return 指令执行是否成功
  * @retval 0-成功，其他-错误码 
@@ -2268,7 +2293,7 @@ robot_recv_thread::robot_recv_thread(const std::string node_name):rclcpp::Node(n
                 "nonrt_state_data",
                 1
             );
-            _locktimer = this->create_wall_timer(20ms,std::bind(&robot_recv_thread::_state_recv_callback,this));//创建一个定时器任务用于获取非实时状态数据,触发间隔为100ms
+            _locktimer = this->create_wall_timer(10ms,std::bind(&robot_recv_thread::_state_recv_callback,this));//创建一个定时器任务用于获取非实时状态数据,触发间隔为100ms
         }
 
         //连接成功，创建守护线程,如果该连接端掉，则自动发起重连接;生命周期随该节点
@@ -2475,7 +2500,7 @@ void robot_recv_thread::_state_recv_callback(){
         if(recv_length < future_len){//获取长度小于预期，说明帧数据需要进行拼接
             if(recv_length != -1){
                 concatante_flag = 1;
-                memcpy(ctrl_state_temp_buff,0,_CTRL_STATE_SIZE);
+                memset(ctrl_state_temp_buff,0,_CTRL_STATE_SIZE);
                 memcpy(&recv_buff[11],oneshot_buff,recv_length);//如果是数据长度差太多，执行这句可能出现数组越界的情况
                 memcpy(ctrl_state_temp_buff,recv_buff,_CTRL_STATE_SIZE);
                 length_left = future_len - recv_length;
