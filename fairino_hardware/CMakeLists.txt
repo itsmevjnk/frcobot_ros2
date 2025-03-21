@@ -27,7 +27,7 @@ file(GLOB EXP_SRC_DIR ./examples/src/*.cpp)
 
 #compile
 file(CREATE_LINK 
-"${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2.1.4"
+"${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2.1.7"
 "${CMAKE_CURRENT_SOURCE_DIR}/libfairino/lib/libfairino.so.2"
 SYMBOLIC)
 
@@ -45,9 +45,11 @@ add_library(
 )
 
 #add headfile source
-target_include_directories(ros2_cmd_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${CMAKE_CURRENT_SOURCE_DIR}/)
+target_include_directories(ros2_cmd_server PUBLIC 
+${CMAKE_CURRENT_SOURCE_DIR}/include/ 
+${CMAKE_CURRENT_SOURCE_DIR}/)
+
 target_include_directories(srv_test_client PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/examples/include)
-message("current source dir is: ")
 target_include_directories(fairino_hardware PUBLIC 
 $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
@@ -94,18 +96,18 @@ file(MAKE_DIRECTORY
 "${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}"
 )
 
-file(COPY_FILE "libfairino/lib/libfairino.so.2.1.4" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2.1.4" 
+file(COPY_FILE "libfairino/lib/libfairino.so.2.1.7" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.7" 
 )
 
 file(CREATE_LINK 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2.1.4" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2.1.7" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2" 
 SYMBOLIC)
 
 file(CREATE_LINK 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so.2" 
-"${CMAKE_INSTALL_PREFIX}/lib/${PROJECT_NAME}/libfairino.so" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so.2" 
+"${CMAKE_INSTALL_PREFIX}/lib/libfairino.so" 
 SYMBOLIC)
 
 

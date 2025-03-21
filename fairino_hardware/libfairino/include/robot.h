@@ -15,6 +15,7 @@
 #include <iostream>
 #include <list>
 #include <vector>
+#include <memory>
 
 class FRTcpClient;
 
@@ -603,12 +604,13 @@ public:
 	errno_t SetWObjCoordPoint(int point_num);
 
 	/**
-	 * @brief 计算工件坐标系
-	 * @param [in] method 计算方式 0：原点-x轴-z轴  1：原点-x轴-xy平面
+	 * @brief  计算工件坐标系
+	 * @param [in] method 计算方法 0：原点-x轴-z轴  1：原点-x轴-xy平面
+	 * @param [in] refFrame 参考坐标系
 	 * @param [out] wobj_pose 工件坐标系
 	 * @return 错误码
 	 */
-	errno_t ComputeWObjCoord(int method, DescPose *wobj_pose);
+	errno_t ComputeWObjCoord(int method, int refFrame, DescPose *wobj_pose);
 
 	/**
 	 * @brief  设置工件坐标系
@@ -630,10 +632,11 @@ public:
 
 	/**
 	 * @brief  设置末端负载重量
+	 * @param  [in] loadNum 负载编号
 	 * @param  [in] weight  负载重量，单位kg
 	 * @return  错误码
 	 */
-	errno_t SetLoadWeight(float weight);
+	errno_t SetLoadWeight(int loadNum, float weight);
 
 	/**
 	 * @brief  设置末端负载质心坐标
@@ -675,13 +678,14 @@ public:
 
 	/**
 	 * @brief  设置碰撞后策略
-	 * @param  [in] strategy  0-报错暂停；1-继续运行;2-报错停止；3-重力矩模式；4-震荡相应模式；5-碰撞回弹模式 
+	 * @param  [in] strategy  0-报错停止，1-继续运行
 	 * @param  [in] safeTime  安全停止时间[1000 - 2000]ms
 	 * @param  [in] safeDistance  安全停止距离[1-150]mm
+	 * @param  [in] safeVel 安全速度[50-250] mm/s
 	 * @param  [in] safetyMargin  j1-j6安全系数[1-10]
 	 * @return  错误码
 	 */
-	errno_t SetCollisionStrategy(int strategy, int safeTime, int safeDistance, int safetyMargin[]);
+	errno_t SetCollisionStrategy(int strategy, int safeTime, int safeDistance, int safeVel, int safetyMargin[]);
 
 	/**
 	 * @brief  设置正限位
@@ -1285,6 +1289,30 @@ public:
 	errno_t GetGripperTemp(uint16_t *fault, int *temp);
 
 	/**
+	 * @brief  获取旋转夹爪的旋转圈数
+	 * @param  [out] fault  0-无错误，1-有错误
+	 * @param  [out] num  旋转圈数
+	 * @return  错误码
+	 */
+	errno_t GetGripperRotNum(uint16_t* fault, double* num);
+
+	/**
+	 * @brief  获取旋转夹爪的旋转速度
+	 * @param  [out] fault  0-无错误，1-有错误
+	 * @param  [out] speed  旋转速度百分比
+	 * @return  错误码
+	 */
+	errno_t GetGripperRotSpeed(uint16_t* fault, int* speed);
+
+	/**
+	 * @brief  获取旋转夹爪的旋转力矩
+	 * @param  [out] fault  0-无错误，1-有错误
+	 * @param  [out] torque  旋转力矩百分比
+	 * @return  错误码
+	 */
+	errno_t GetGripperRotTorque(uint16_t* fault, int* torque);
+
+	/**
 	 * @brief  计算预抓取点-视觉
 	 * @param  [in] desc_pos  抓取点笛卡尔位姿
 	 * @param  [in] zlength   z轴偏移量
@@ -1306,8 +1334,8 @@ public:
 
 	/**
 	 * @brief  配置力传感器
-	 * @param  [in] company  力传感器厂商，17-坤维科技，19-航天十一院，20-ATI传感器，21-中科米点，22-伟航敏芯
-	 * @param  [in] device  设备号，坤维(0-KWR75B)，航天十一院(0-MCS6A-200-4)，ATI(0-AXIA80-M8)，中科米点(0-MST2010)，伟航敏芯(0-WHC6L-YB-10A)
+	 * @param  [in] company  力传感器厂商，17-坤维科技，19-航天十一院，20-ATI传感器，21-中科米点，22-伟航敏芯，23-NBIT，24-鑫精诚(XJC)，26-NSR
+	 * @param  [in] device  设备号，坤维(0-KWR75B)，航天十一院(0-MCS6A-200-4)，ATI(0-AXIA80-M8)，中科米点(0-MST2010)，伟航敏芯(0-WHC6L-YB-10A)，NBIT(0-XLH93003ACS)，鑫精诚XJC(0-XJC-6F-D82)，NSR(0-NSR-FTSensorA)
 	 * @param  [in] softvesion  软件版本号，暂不使用，默认为0
 	 * @param  [in] bus 设备挂在末端总线位置，暂不使用，默认为0
 	 * @return  错误码
@@ -2528,9 +2556,11 @@ public:
 	  * @param  [in] referSampleStartUd 上下基准电流采样开始计数(反馈);，cyc
 	  * @param  [in] referSampleCountUd 上下基准电流采样循环计数(反馈);，cyc
 	  * @param  [in] referenceCurrent 上下基准电流mA
+	  * @param  [in] offsetType 偏置跟踪类型，0-不偏置；1-采样；2-百分比
+	  * @param  [in] offsetParameter 偏置参数；采样(偏置采样开始时间，默认采一周期)；百分比(偏置百分比(-100 ~ 100))
 	  * @return  错误码
 	  */
-	 errno_t ArcWeldTraceControl(int flag, double delaytime, int isLeftRight, double klr, double tStartLr, double stepMaxLr, double sumMaxLr, int isUpLow, double kud, double tStartUd, double stepMaxUd, double sumMaxUd, int axisSelect, int referenceType, double referSampleStartUd, double referSampleCountUd, double referenceCurrent);
+	 errno_t ArcWeldTraceControl(int flag, double delaytime, int isLeftRight, double klr, double tStartLr, double stepMaxLr, double sumMaxLr, int isUpLow, double kud, double tStartUd, double stepMaxUd, double sumMaxUd, int axisSelect, int referenceType, double referSampleStartUd, double referSampleCountUd, double referenceCurrent, int offsetType = 0, int offsetParameter = 0);
 
 
 	 /**
@@ -2546,6 +2576,7 @@ public:
 	  * @param  [in] status 控制状态，0-关闭；1-开启
 	  * @param  [in] asaptiveFlag 自适应开启标志，0-关闭；1-开启
 	  * @param  [in] interfereDragFlag 干涉区拖动标志，0-关闭；1-开启
+	  * @param  [in] ingularityConstraintsFlag 奇异点策略，0-规避；1-穿越
 	  * @param  [in] M 惯性系数
 	  * @param  [in] B 阻尼系数
 	  * @param  [in] K 刚度系数
@@ -2554,7 +2585,7 @@ public:
 	  * @param  [in] Vmax 最大关节速度限制
 	  * @return  错误码
 	  */
-	 errno_t EndForceDragControl(int status, int asaptiveFlag, int interfereDragFlag, std::vector<double> M, std::vector<double> B, std::vector<double> K, std::vector<double> F, double Fmax, double Vmax);
+	 errno_t EndForceDragControl(int status, int asaptiveFlag, int interfereDragFlag, int ingularityConstraintsFlag, std::vector<double> M, std::vector<double> B, std::vector<double> K, std::vector<double> F, double Fmax, double Vmax);
 
 
 	 /**
@@ -3213,6 +3244,187 @@ public:
 	errno_t SingularAvoidEnd();
 
 	/**
+	* @brief 开始Ptp运动FIR滤波
+	* @param [in] maxAcc 最大加速度极值(deg/s2)
+	* @return 错误码
+	*/
+	errno_t PtpFIRPlanningStart(double maxAcc);
+
+	/**
+	* @brief 关闭Ptp运动FIR滤波
+	* @return 错误码
+	*/
+	errno_t PtpFIRPlanningEnd();
+
+	/**
+	* @brief 开始LIN、ARC运动FIR滤波
+	* @param [in] maxAccLin 线加速度极值(mm/s2)
+	* @param [in] maxAccDeg 角加速度极值(deg/s2)
+	* @param [in] maxJerkLin 线加加速度极值(mm/s3)
+	* @param [in] maxJerkDeg 角加加速度极值(deg/s3)
+	* @return 错误码
+	*/
+	errno_t LinArcFIRPlanningStart(double maxAccLin, double maxAccDeg, double maxJerkLin, double maxJerkDeg);
+
+	/**
+	* @brief 关闭LIN、ARC运动FIR滤波
+	* @return 错误码
+	*/
+	errno_t LinArcFIRPlanningEnd();
+
+	/**
+	 * @brief 上传轨迹J文件
+	 * @param [in] filePath 上传轨迹文件的全路径名   C://test/testJ.txt
+	 * @return 错误码
+	 */
+	errno_t TrajectoryJUpLoad(const std::string& filePath);
+
+	/**
+	 * @brief 删除轨迹J文件
+	 * @param [in] fileName 文件名称 testJ.txt
+	 * @return 错误码
+	 */
+	errno_t TrajectoryJDelete(const std::string& fileName);
+
+	/**
+	 * @brief 根据点位信息计算工具坐标系
+	 * @param [in] method 计算方法；0-四点法；1-六点法
+	 * @param [in] pos 关节位置组，四点法时数组长度为4个，六点法时数组长度为6个
+	 * @param [out] coord 工具坐标系结果
+	 * @return 错误码
+	 */
+	errno_t ComputeToolCoordWithPoints(int method, JointPos pos[], DescPose& coord);
+
+	/**
+	 * @brief 根据点位信息计算工件坐标系
+	 * @param [in] method 计算方法；0：原点-x轴-z轴  1：原点-x轴-xy平面
+	 * @param [in] pos 三个TCP位置组
+	 * @param [in] refFrame 参考坐标系
+	 * @param [out] coord 工具坐标系结果
+	 * @return 错误码
+	 */
+	errno_t ComputeWObjCoordWithPoints(int method, DescPose pos[], int refFrame, DescPose& coord);
+
+	/**
+	 * @brief 设置机器人焊接电弧意外中断检测参数
+	 * @param [in] checkEnable 是否使能检测；0-不使能；1-使能
+	 * @param [in] arcInterruptTimeLength 电弧中断确认时长(ms)
+	 * @return 错误码
+	 */
+	errno_t WeldingSetCheckArcInterruptionParam(int checkEnable, int arcInterruptTimeLength);
+
+	/**
+	 * @brief 获取机器人焊接电弧意外中断检测参数
+	 * @param [out] checkEnable 是否使能检测；0-不使能；1-使能
+	 * @param [out] arcInterruptTimeLength 电弧中断确认时长(ms)
+	 * @return 错误码
+	 */
+	errno_t WeldingGetCheckArcInterruptionParam(int* checkEnable, int* arcInterruptTimeLength);
+
+	/**
+	 * @brief 设置机器人焊接中断恢复参数
+	 * @param [in] enable 是否使能焊接中断恢复
+	 * @param [in] length 焊缝重叠距离(mm)
+	 * @param [in] velocity 机器人回到再起弧点速度百分比(0-100)
+	 * @param [in] moveType 机器人运动到再起弧点方式；0-LIN；1-PTP
+	 * @return 错误码
+	 */
+	errno_t WeldingSetReWeldAfterBreakOffParam(int enable, double length, double velocity, int moveType);
+
+	/**
+	 * @brief 获取机器人焊接中断恢复参数
+	 * @param [out] enable 是否使能焊接中断恢复
+	 * @param [out] length 焊缝重叠距离(mm)
+	 * @param [out] velocity 机器人回到再起弧点速度百分比(0-100)
+	 * @param [out] moveType 机器人运动到再起弧点方式；0-LIN；1-PTP
+	 * @return 错误码
+	 */
+	errno_t WeldingGetReWeldAfterBreakOffParam(int* enable, double* length, double* velocity, int* moveType);
+
+	/**
+	 * @brief 设置机器人焊接中断后恢复焊接
+	 * @return 错误码
+	 */
+	errno_t WeldingStartReWeldAfterBreakOff();
+
+	/**
+	 * @brief 设置机器人焊接中断后退出焊接
+	 * @return 错误码
+	 */
+	errno_t WeldingAbortWeldAfterBreakOff();
+
+	/**
+	 * @brief 激光轨迹记录
+	 * @param [in] enable 是否使能焊接中断恢复
+	 * @param [in] length 焊缝重叠距离(mm)
+	 * @param [in] velocity 机器人回到再起弧点速度百分比(0-100)
+	 * @param [in] moveType 机器人运动到再起弧点方式；0-LIN；1-PTP
+	 * @return 错误码
+	 */
+	errno_t LaserSensorRecord(int status, int delayMode, int delayTime, int delayDisExAxisNum, double delayDis, double sensitivePara, double speed);
+
+	errno_t LaserTrackingLaserOn(int weldId);
+
+	errno_t LaserTrackingLaserOff();
+
+	errno_t LaserTrackingTrackOn(int coordId);
+
+	errno_t LaserTrackingTrackOff();
+
+	errno_t LaserTrackingSearchStart(int direction, DescTran directionPoint, int vel, int distance, int timeout, int posSensorNum);
+
+	errno_t LaserTrackingSearchStop();
+
+	/**
+	 * @brief  摆动渐变开始
+	 * @param  [in] weaveNum 摆动编号
+	 * @return  错误码
+	 */
+	errno_t WeaveChangeStart(int weaveNum);
+
+	/**
+	 * @brief  摆动渐变结束
+	 * @return  错误码
+	 */
+	errno_t WeaveChangeEnd();
+
+	/**
+	 * @brief  轨迹预处理(轨迹前瞻)
+	 * @param  [in] name  轨迹文件名
+	 * @param  [in] mode 采样模式，0-不进行采样；1-等数据间隔采样；2-等误差限制采样
+	 * @param  [in] errorLim 误差限制，使用直线拟合生效
+	 * @param  [in] type 平滑方式，0-贝塞尔平滑
+	 * @param  [in] precision 平滑精度，使用贝塞尔平滑时生效
+	 * @param  [in] vamx 设定的最大速度，mm/s
+	 * @param  [in] amax 设定的最大加速度，mm/s2
+	 * @param  [in] jmax 设定的最大加加速度，mm/s3
+	 * @return  错误码
+	 */
+	errno_t LoadTrajectoryLA(char name[30], int mode, double errorLim, int type, double precision, double vamx, double amax, double jmax);
+
+	/**
+	 * @brief  轨迹复现(轨迹前瞻)
+	 * @return  错误码
+	 */
+	errno_t MoveTrajectoryLA();
+
+	/**
+	 * @brief  自定义碰撞检测阈值功能开始，设置关节端和TCP端的碰撞检测阈值
+	 * @param  [in] flag 1-仅关节检测开启；2-仅TCP检测开启；3-关节和TCP检测同时开启
+	 * @param  [in] jointDetectionThreshould 关节碰撞检测阈值 j1-j6
+	 * @param  [in] tcpDetectionThreshould TCP碰撞检测阈值，xyzabc
+	 * @param  [in] block 0-非阻塞；1-阻塞
+	 * @return  错误码
+	 */
+	errno_t CustomCollisionDetectionStart(int flag, double jointDetectionThreshould[6], double tcpDetectionThreshould[6], int block);
+
+	/**
+	 * @brief  自定义碰撞检测阈值功能关闭
+	 * @return  错误码
+	 */
+	errno_t CustomCollisionDetectionEnd();
+
+	/**
 	* @brief  设置与机器人通讯重连参数
 	* @param  [in] enable  网络故障时使能重连 true-使能 false-不使能
 	* @param  [in] reconnectTime 重连时间，单位ms
@@ -3273,6 +3485,9 @@ private:
 	//判断当前通信是否正常  正常返回false，异常反馈true
 	bool IsSockError();
 
+	//判断当前安全状态，安全停止、主子故障等
+	int GetSafetyCode();
+
 private:
 	uint8_t robot_realstate_exit = 0;
 	uint8_t robot_instcmd_send_exit = 0;
@@ -3285,10 +3500,9 @@ private:
 	double fileUploadPercent;
 
 	char robot_ip[64];
-	ROBOT_STATE_PKG robot_state_pkg;
-
-	FRTcpClient* rtClient = nullptr;
-	FRTcpClient* cmdClient = nullptr;
+	std::shared_ptr<ROBOT_STATE_PKG> robot_state_pkg;
+	std::shared_ptr<FRTcpClient> rtClient;
+	std::shared_ptr<FRTcpClient> cmdClient;
 
 };
 
