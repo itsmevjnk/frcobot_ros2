@@ -44,6 +44,7 @@ public:
     std::string GetTCPOffset(std::string para);
     std::string GetDHCompensation(std::string para);
     std::string GetWeldingBreakOffState(std::string para);
+    std::string GetErrorCode(std::string para);
 
     //普通设置类
     std::string DragTeachSwitch(std::string para);//拖动示教模式切换
@@ -165,6 +166,8 @@ public:
 private:
     std::unique_ptr<FRRobot> _ptr_robot;//机械臂SDK库指针
     ROBOT_STATE_PKG _robot_realtime_state;//从SDK获取的机械臂实时状态结构体
+    rclcpp::TimerBase::SharedPtr _locktimer;
+
     int lose_connect_times = 0;
 
     //函数指针是有作用域的，所以全局函数的指针和类内成员函数的指针定义有很大不同，这里不能用typedef
@@ -178,6 +181,7 @@ private:
     void _fillDescPose(std::list<std::string>& data,DescPose& pose);
     void _fillDescTran(std::list<std::string>& data,DescTran& trans);
     void _fillJointPose(std::list<std::string>& data,JointPos pos);
+    void _getRobotRTState();
     //TODO 使用可变参数模板函数去填装SDK函数所需参数
     // template<typename T,typename ... Ts>
     // void _recurseVar(T& first_arg,Ts&... args);
@@ -204,6 +208,7 @@ private:
     {"GetRobotVersion",&robot_command_thread::GetRobotVersion},
     {"GetControllerVersion",&robot_command_thread::GetControllerVersion},
     {"GetWeldingBreakOffState",&robot_command_thread::GetWeldingBreakOffState},
+    {"GetErrorCode",&robot_command_thread::GetErrorCode},
     {"DragTeachSwitch",&robot_command_thread::DragTeachSwitch},
     {"RobotEnable",&robot_command_thread::RobotEnable},
     {"SetSpeed",&robot_command_thread::SetSpeed},
@@ -247,6 +252,7 @@ private:
     {"MoveL",&robot_command_thread::MoveL},
     {"MoveC",&robot_command_thread::MoveC},
     {"Circle",&robot_command_thread::Circle},
+    {"ServoJ",&robot_command_thread::ServoJ},
     {"SplineStart",&robot_command_thread::SplineStart},
     {"SplinePTP",&robot_command_thread::SplinePTP},
     {"SplineEnd",&robot_command_thread::SplineEnd},

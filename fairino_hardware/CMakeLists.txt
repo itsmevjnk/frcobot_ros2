@@ -9,7 +9,6 @@ endif()
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 17)
 
-
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -43,6 +42,10 @@ add_library(
   SHARED 
   ./src/fairino_hardware_interface.cpp
 )
+
+#target_compile_definitions(ros2_cmd_server PRIVATE CHN_VERSION)
+#target_compile_definitions(ros2_cmd_server PRIVATE ENG_VERSION)
+
 
 #add headfile source
 target_include_directories(ros2_cmd_server PUBLIC 
