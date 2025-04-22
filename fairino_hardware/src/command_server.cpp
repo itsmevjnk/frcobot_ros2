@@ -4,11 +4,134 @@
 #include "fairino_hardware/version_control.h"
 
 std::mutex _reconnect_mutex;
+int  _program_state;//程序运行状态：1-停止、2-运行、3-暂停、4-拖动
+static ROBOT_STATE_PKG global_robot_rtstate;
 
 #define LOSE_TCP_CONNECT_TIME_MAX 10
 #define LOGGER_NAME "fairino_ros2_command_server"
 
-int  _program_state;//程序运行状态：1-停止、2-运行、3-暂停、4-拖动
+#ifdef CHN_VERSION
+char* msgout[] = {
+    "ROS2指令服务器创建成功,准备连接机械臂",
+    "fairino_hardware版本号:",
+    "适配机械臂软件版本号:",
+    "构建时间:",
+    "连接机械臂失败，程序即将退出！",
+    "连接机械臂成功！",
+    "收到ROS指令,名称&参数:",
+    "指令错误: 找不到该指令对应的函数",
+    "出现无效参数，请检查参数数据类型",
+    "参数出现超范围数据",
+    "取参数过程发生异常，请检查参数个数是否正确",
+    "指令错误:函数参数输入不合法,参数列表由字母,数字和逗号组成,不能有空格出现",
+    "指令错误:函数输入形式错误,函数输入必须是 [函数名]() 这种输入形式,请重新输入",
+    "指令错误:关节位置参数为6个,参数输入个数请确认",
+    "指令错误:关节/笛卡尔容器序号超限",
+    "指令错误：关节点位输入参数规则为第一个为存储序号,后续为关节位置信息,以逗号隔开,不能出现空格",
+    "指令错误:笛卡尔位置参数为6个,参数输入个数请确认",
+    "指令错误：笛卡尔点位输入参数规则为第一个为存储序号,后续为笛卡尔位置信息,以逗号隔开,不能出现空格",
+    "指令错误: 无效的GET指令参数",
+    "指令错误: GET指令参数非法,参数形式为[JNT|CART],[序号]",
+    "指令错误:指令调用正向运动学发生错误",
+    "指令错误:指令调用逆向运动学发生错误",
+    "指令错误:点位参数输入非法,没有找到点位信息",
+    "开始创建状态反馈TCP socket",
+    "错误: 创建socket失败!",
+    "创建状态反馈socket成功,开始连接控制器...",
+    "错误:无法连接控制器反馈数据端口,程序即将退出!",
+    "控制器状态端口连接成功",
+    "开启tcp心跳检测失败",
+    "守护线程:创建套接字失败, 3s后再次尝试",
+    "守护线程:发起重新连接失败, 3s后再次尝试",
+    "守护线程:重新连接成功",
+    "守护线程:重连线程退出",
+    "网络断开，请检查网络",
+    "反馈状态数据帧长度小于预期,请对齐fairino_hardware功能包与机械臂软件版本。",
+    "反馈状态数据帧长度大于预期,请对齐fairino_hardware功能包与机械臂软件版本。",
+    "帧数据拼接失败，帧尾数据校验失败，重新寻找帧头"
+};
+#endif
+
+#ifdef ENG_VERSION
+char* msgout[] = {"ROS2 command server created,ready to connect robot","fairino_hardware:",\
+    "Adapt to software version of robot:","Package build time:","Robot connect failed! program about to exit",\
+    "Robot connected!","Receive ROS command,command name&parameters:","Command error:invalid fucntion name",\
+    "Invalid parameter,please check data types of input parameters",
+    "Parameter out of range,please check value of input parameters",
+    "Incorrect parameter number,please check numbers of input parameters",
+    "Illegal parameters,parameters consist of number,dot and letters,space in not allowed",
+    "Illegal command format,you must follow the format:'function name(parameters)'",
+    "Number of joint position is 6, please check parameter number",
+    "Joint pos container index out of range",
+    "Parameter fomart:index,j1pos...j6pos,please input correct format",
+    "Number of cartesean position is 6, please check parameter number",
+    "Parameter fomart:index,x,y,z,r,p,y,please input correct format",
+    "Invalid command GET parameter",
+    "Illegal command GET parameter,format:[JNT|CART],[index]",
+    "Joint/Cartesean position container index out of range",
+    "Forward kinematic error occur,please check input point",
+    "Inverse kinematic error occur,please check input point",
+    "Invalid container index,can't find the point",
+    "Ready to create state feedback client socket",
+    "Error:socket create failed",
+    "Socket created,ready to connect robot...",
+    "Error:failed to connect robot state feedback port,program about to exit!",
+    "Connected to robot state feedback port",
+    "Failed to set socket keep alive",
+    "Keep alive:recreate socket failed, try again after 3sec",
+    "Keep alive:reconnect robot failed, try again after 3sec",
+    "Keep alive:reconnect success!",
+    "Keep alive:thread exit!",
+    "State feedback socket disconnected, please check your network",
+    "The volumn of state feedback data is smaller than expected, please check robot sofeware version",
+    "The volumn of state feedback data is larger than expected, please check robot sofeware version",
+    "The sumcheck of state feedback data is failed, drop the data and search frame head again"
+};
+#endif
+
+typedef enum _msg_id{
+    hello,
+    ver_package,
+    ver_robot,
+    build_time,
+    connect_failed,
+    connect_success,
+    receive_cmd,
+    invalid_cmd,
+    invalid_datatype,
+    invalid_range,
+    invalid_paranum,
+    illegal_para,
+    illegal_cmdfomart,
+    invalid_jntposnum,
+    out_container_range,
+    invalid_jntcontainer_format,
+    invalid_cartposnum,
+    invalid_cartcontainer_format,
+    invalid_get_para,
+    illegal_get_para,
+    fwd_kin_error,
+    inv_kin_error,
+    invalid_container_index,
+    create_state_feedback,
+    socket_create_failed,
+    socket_create_success,
+    socket_connect_failed,
+    socket_connect_success,
+    keep_alive_failed,
+    keep_alive_recreate_socket_failed,
+    keep_alive_reconnect_failed,
+    keep_alive_reconnect_success,
+    keep_alive_exit,
+    network_diconnect,
+    feedback_data_small,
+    feedback_data_large,
+    search_head_again
+}msg_id;
+
+
+
+
 
 
 /**
@@ -77,20 +200,23 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
     _controller_ip = CONTROLLER_IP;//控制器默认ip地址
 
     //打印输出版本信息及其他前置信息
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功,准备连接机械臂");
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"fairino_hardware版本号:V%i.%i.%i,机械臂软件版本号:V%i.%i.%i",\
-        VERSION_MAJOR,VERSION_MINOR,VERSION_MINOR2,VERSION_ROBOT_MARJOR,VERSION_ROBOT_MINOR,VERSION_ROBOT_MINOR2);
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"构建时间:%s,%s",__TIME__,__DATE__);    
-    
-    
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(hello)]);
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),(std::string(msgout[msg_id(ver_package)])+std::string("V%i.%i.%i")).c_str(),\
+        VERSION_MAJOR,VERSION_MINOR,VERSION_MINOR2);
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),(std::string(msgout[msg_id(ver_robot)])+std::string("V%i.%i.%i,")).c_str(),\
+        VERSION_ROBOT_MARJOR,VERSION_ROBOT_MINOR,VERSION_ROBOT_MINOR2);
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),(std::string(msgout[msg_id(build_time)])+std::string("%s,%s")).c_str(),\
+        __TIME__,__DATE__);
+
     //开始初始化
     _ptr_robot = std::make_unique<FRRobot>();
     error_t returncode = _ptr_robot->RPC(_controller_ip.c_str());
     if(returncode !=0 ){
-        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"连接机械臂失败，程序即将退出！");
+        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(connect_failed)]);
         exit(0);
     }
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"连接机械臂成功！");
+    _locktimer = this->create_wall_timer(10ms,std::bind(&robot_command_thread::_getRobotRTState,this));
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(connect_success)]);
     /*********************************************************************************************/
 }
 
@@ -119,36 +245,36 @@ void robot_command_thread::_parseROSCommandData_callback(
     if(std::regex_match(req->cmd_str,func_match,func_reg)){
         std::string func_name = func_match[1];
         std::string para_list = func_match[2];
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"收到ROS指令，名称:%s,参数:%s",\
-            func_name.c_str(),para_list.c_str());
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),(std::string(msgout[msg_id(receive_cmd)])+\
+            std::string("%s,%s")).c_str(),func_name.c_str(),para_list.c_str());
 
         //校验参数的内容,参数部分必须是字母,数字和逗号,负号组成,出现其他字符包括空格都会导致校验失败
         std::regex para_pattern(".*");
         if(std::regex_match(para_list,para_pattern)){//检查参数输入是否合法
             auto find_idx = _fr_function_list.find(func_name);
             if(find_idx == _fr_function_list.end()){
-                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误: 找不到该指令对应的函数");
+                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_cmd)]);
                 res->cmd_res = std::string("-1");
             }else if(find_idx != _fr_function_list.end()){
                 try{
                     res->cmd_res = (this->*(find_idx->second))(para_list);
                 }catch(const std::invalid_argument& e){
-                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"字符串转换过程出现无效参数");
+                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_datatype)]);
                     res->cmd_res = "-1";
                 }catch(const std::out_of_range& e){
-                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"字符串转换过程出现超范围数据");
+                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_range)]);
                     res->cmd_res = "-1";
                 }catch(const std::logic_error& e){
-                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"取参数过程发生异常，请检查参数个数是否正确");
+                    RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_paranum)]);
                     res->cmd_res = "-1";
                 }
             }
         }else{
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:函数参数输入不合法,参数列表由字母,数字和逗号组成,不能有空格出现");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(illegal_para)]);
             res->cmd_res = std::string("-1");
         }
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:函数输入形式错误,函数输入必须是 [函数名]() 这种输入形式,请重新输入");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(illegal_cmdfomart)]);
         res->cmd_res = std::string("-1");
     }
 }
@@ -228,6 +354,10 @@ void robot_command_thread::_fillJointPose(std::list<std::string>& data,JointPos 
     }
 }
 
+void robot_command_thread::_getRobotRTState(){
+    _ptr_robot->GetRobotRealTimeState(&global_robot_rtstate);
+}
+
 
 /**
  * @brief 私有函数，用于处理JNTPoint()指令
@@ -249,14 +379,14 @@ std::string robot_command_thread::defJntPosition(std::string pos){
             count++;
         }
         if(count != 7){
-            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"指令错误:关节位置参数为6个,参数输入个数请确认");
+            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_jntposnum)]);
             return "-1";
         }
         iter_data = std::regex_token_iterator(pos.begin(),pos.end(),search_para,-1);
         int idx = atol(iter_data->str().c_str());//指令序号
         iter_data++;
         if(idx > _cmd_jnt_pos_list.size()+1 || idx <= 0){//如果大于当前容器最大值+1,那么要报错,因为序列容器中间无法留空
-            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"指令错误:容器序号超限");
+            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }else if(idx <= _cmd_jnt_pos_list.size()){//如果是小于等于当前的容量,那么就是点位信息覆盖
             int i=0;
@@ -272,8 +402,7 @@ std::string robot_command_thread::defJntPosition(std::string pos){
             _cmd_jnt_pos_list.push_back(pos);
         }
     }else{
-        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),\
-            "指令错误：关节点位输入参数规则为第一个为存储序号,后续为关节位置信息,以逗号隔开,不能出现空格");
+        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_jntcontainer_format)]);
         return "-1";
     }
     return "0";
@@ -300,14 +429,14 @@ std::string robot_command_thread::defCartPosition(std::string pos){
             count++;
         }
         if(count != 7){
-            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"指令错误:笛卡尔位置参数为6个,参数输入个数请确认");
+            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_cartposnum)]);
             return "-1";
         }
         iter_data = std::regex_token_iterator(pos.begin(),pos.end(),search_para,-1);
         int idx = atol(iter_data->str().c_str());//指令序号
         iter_data++;
         if(idx > _cmd_cart_pos_list.size()+1 || idx <= 0){//如果大于当前容器最大值+1,那么要报错,因为序列容器中间无法留空
-            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"指令错误:容器序号超限");
+            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }else if(idx <= _cmd_cart_pos_list.size()){//如果是小于等于当前的容量,那么就是点位信息覆盖
             _cmd_cart_pos_list.at(idx-1).tran.x = atof(iter_data->str().c_str());iter_data++;
@@ -328,8 +457,7 @@ std::string robot_command_thread::defCartPosition(std::string pos){
             _cmd_cart_pos_list.push_back(add_pos);
         }
     }else{
-        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),\
-            "指令错误：笛卡尔点位输入参数规则为第一个为存储序号,后续为笛卡尔位置信息,以逗号隔开,不能出现空格");
+        RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_cartcontainer_format)]);
         return "-1";
     }
     return "0";
@@ -358,7 +486,7 @@ std::string robot_command_thread::getVariable(std::string para_list){
                                   std::to_string(pos.jPos[5]);
                 return res;
             }else{
-                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:输入点的序号超出范围");
+                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             }
         }else if(para_match[1] == "CART"){
                 int idx = atol(para_match[2].str().c_str());
@@ -372,13 +500,13 @@ std::string robot_command_thread::getVariable(std::string para_list){
                                           std::to_string(pos.rpy.rz);
                     return res;
                 }else{
-                    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:输入点的序号超出范围");
+                    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
                 }
         }else{
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误: 无效的GET指令参数");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_get_para)]);
         }
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误: GET指令参数非法,参数形式为[JNT|CART],[序号]");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(illegal_get_para)]);
     }
 }
 
@@ -1118,27 +1246,27 @@ std::string robot_command_thread::MoveJ(std::string para){
     if(std::regex_match(head_str,num_match,std::regex("(JNT)([0-9]*)"))){//第一个元素是否满足JNT1这种模式
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_jnt_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveJ输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         tmp_jnt_pos = _cmd_jnt_pos_list.at(index-1);
         if(_ptr_robot->GetForwardKin(&tmp_jnt_pos,&cartpos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveJ指令调用正向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(fwd_kin_error)]);
             return "-1";
         }
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_cart_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveJ输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         cartpos = _cmd_cart_pos_list.at(index-1);
         if(_ptr_robot->GetInverseKin(0,&cartpos,-1,&tmp_jnt_pos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveJ指令调用逆向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(inv_kin_error)]);
             return "-1";
         }
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveJ参数输入非法,没有找到点位信息");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_container_index)]);
         return "-1";
     }
 
@@ -1158,8 +1286,6 @@ std::string robot_command_thread::MoveJ(std::string para){
     ExaxisPos extpos{eaxis1,eaxis2,eaxis3,eaxis4};
     DescPose offsetpos{offset_pos_x,offset_pos_y,offset_pos_z,offset_pos_rx,offset_pos_ry,offset_pos_rz};
 
-        // std::string tmp_para = FRAPI_base::command_factry("MoveJ",1,para);
-        // std::cout << "MoveJ发送数据: " << tmp_para << std::endl;
     return std::to_string(_ptr_robot->MoveJ(&tmp_jnt_pos,&cartpos,tool,user,speed,acc,\
         ovl,&extpos,blendT,offset_flag,&offsetpos));
 }
@@ -1203,27 +1329,27 @@ std::string robot_command_thread::MoveL(std::string para){
      if(std::regex_match(head_str,num_match,std::regex("(JNT)([0-9]*)"))){//第一个元素是否满足JNT1这种模式
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_jnt_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveL输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         tmp_jnt_pos = _cmd_jnt_pos_list.at(index-1);
         if(_ptr_robot->GetForwardKin(&tmp_jnt_pos,&cartpos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveL指令调用正向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(fwd_kin_error)]);
             return "-1";
         }
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_cart_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveL输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         cartpos = _cmd_cart_pos_list.at(index-1);
         if(_ptr_robot->GetInverseKin(0,&cartpos,-1,&tmp_jnt_pos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveL指令调用逆向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(inv_kin_error)]);
             return "-1";
         }
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveL参数输入非法,没有找到点位信息");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_container_index)]);
         return "-1";
     }
 
@@ -1292,7 +1418,7 @@ std::string robot_command_thread::MoveC(std::string para){
         int index = atol(num_match[2].str().c_str());
         int index2 = atol(num_match2[2].str().c_str());
         if(index > _cmd_jnt_pos_list.size() || index2 > _cmd_jnt_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveC输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         JointPos tmp_jnt_pos = _cmd_jnt_pos_list.at(index-1);
@@ -1300,7 +1426,7 @@ std::string robot_command_thread::MoveC(std::string para){
 
         if(_ptr_robot->GetForwardKin(&tmp_jnt_pos,&cartpos) != 0 ||
             _ptr_robot->GetForwardKin(&tmp_jnt_pos2,&cartpos2) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveC指令调用正向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(fwd_kin_error)]);
             return "-1";
         } 
     }else if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)")) && \
@@ -1308,18 +1434,18 @@ std::string robot_command_thread::MoveC(std::string para){
         int index = atol(num_match[2].str().c_str());
         int index2 = atol(num_match2[2].str().c_str());
         if(index > _cmd_cart_pos_list.size() || index2 > _cmd_cart_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveC输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         cartpos = _cmd_cart_pos_list.at(index-1);
         cartpos2 = _cmd_cart_pos_list.at(index2-1);
         if(_ptr_robot->GetInverseKin(0,&cartpos,-1,&tmp_jnt_pos) != 0 ||
             _ptr_robot->GetInverseKin(0,&cartpos2,-1,&tmp_jnt_pos2) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveC指令调用逆向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(inv_kin_error)]);
             return "-1";
         }
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:MoveC参数输入非法");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_container_index)]);
         return "-1";
     }
 
@@ -1413,8 +1539,7 @@ std::string robot_command_thread::SplinePTP(std::string para){
     if(std::regex_match(head_str,num_match,std::regex("(JNT)([0-9]*)"))){ 
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_jnt_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),\
-                "指令错误:SplinePTP输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
 
@@ -1422,8 +1547,7 @@ std::string robot_command_thread::SplinePTP(std::string para){
         DescPose cartpos;
 
         if(_ptr_robot->GetForwardKin(&tmp_jnt_pos,&cartpos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),\
-                "指令错误:Spline指令调用正向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(fwd_kin_error)]);
             return "-1";
         }
 
@@ -1443,7 +1567,7 @@ std::string robot_command_thread::SplinePTP(std::string para){
         return std::to_string(_ptr_robot->SplinePTP(&tmp_jnt_pos,&cartpos,\
                                 tool,user,speed,acc,ovl));
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:Spline参数输入非法");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_container_index)]);
         return "-1";
     }
 }
@@ -1501,14 +1625,14 @@ std::string robot_command_thread::NewSplinePoint(std::string para){
     if(std::regex_match(head_str,num_match,std::regex("(CART)([0-9]*)"))){
         int index = atol(num_match[2].str().c_str());
         if(index > _cmd_cart_pos_list.size()){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:NewSplinePoint输入位置点序号超限");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(out_container_range)]);
             return "-1";
         }
         DescPose cartpos = _cmd_cart_pos_list.at(index-1);
         JointPos jntpos;
 
         if(_ptr_robot->GetInverseKin(0,&cartpos,-1,&jntpos) != 0){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:NewSplinePoint指令调用逆向运动学发生错误");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(inv_kin_error)]);
             return "-1";
         }
 
@@ -1531,7 +1655,7 @@ std::string robot_command_thread::NewSplinePoint(std::string para){
         return std::to_string(_ptr_robot->NewSplinePoint(&jntpos,&cartpos,tool,user,speed,\
             acc,ovl,blendR,lastflag));
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"指令错误:NewSplinePoint参数输入非法");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(invalid_container_index)]);
         return "-1";
     }
 }
@@ -1891,6 +2015,16 @@ std::string robot_command_thread::GetWeldingBreakOffState(std::string para){
     //         "," + std::to_string(state.weldArcState));
 }
 
+/**
+ * @brief 获取错误码
+ * @return 错误码
+ * @retval maincode,subcode
+ */
+std::string robot_command_thread::GetErrorCode(std::string para){
+    int maincode,subcode;
+    _ptr_robot->GetRobotErrorCode(&maincode,&subcode);
+    return std::string(std::to_string(maincode) + "," + std::to_string(subcode));
+}
 
 
 /**
@@ -2086,6 +2220,7 @@ std::string robot_command_thread::LuaUpload(std::string para){
     //string filepath
     int res = _ptr_robot->LuaUpload(para);
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"上传LUA脚本调用SDK的结果为:%i",res);
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"LUA upload result:%i",res);
     return std::to_string(res);
 }
 
@@ -2257,16 +2392,16 @@ std::string robot_command_thread::WeldingAbortWeldAfterBreakOff(std::string para
 robot_recv_thread::robot_recv_thread(const std::string node_name):rclcpp::Node(node_name){
     using namespace std::chrono_literals;
     _controller_ip = CONTROLLER_IP;//控制器默认ip地址
-    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"开始创建状态反馈TCP socket");
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(create_state_feedback)]);
 
     //只保留8081端口的连接，8083连接传输的数据已经不用
     _socketfd1 = socket(AF_INET,SOCK_STREAM,0);//状态获取端口只有TCP
 
     if(_socketfd1 == -1){
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"错误: 创建socket失败!");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(socket_create_failed)]);
         exit(0);//创建套字失败,丢出错误
     }else{
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"创建状态反馈socket成功,开始连接控制器...");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(socket_create_success)]);
         struct sockaddr_in tcp_client1;
         tcp_client1.sin_family = AF_INET;
         tcp_client1.sin_port = htons(port1);//8081端口
@@ -2276,17 +2411,17 @@ robot_recv_thread::robot_recv_thread(const std::string node_name):rclcpp::Node(n
         //尝试连接控制器
         int res1 = connect(_socketfd1,(struct sockaddr *)&tcp_client1,sizeof(tcp_client1));
         if(0 != res1){
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"错误:无法连接控制器数据端口,程序退出!");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(socket_connect_failed)]);
             exit(0);//连接失败,丢出错误并返回
         }else{
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"控制器状态端口连接成功");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(socket_connect_success)]);
             //将socket设置成非阻塞模式
             int flags1 = fcntl(_socketfd1,F_GETFL,0);
             fcntl(_socketfd1,F_SETFL,flags1|SOCK_NONBLOCK);
             
             //开启keepalive
             if(0 != setKeepAlive(_socketfd1, 5, 3, 3)){
-                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"开启tcp心跳检测失败");
+                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(keep_alive_failed)]);
             }
 
             _state_publisher = this->create_publisher<robot_feedback_msg>(
@@ -2319,7 +2454,8 @@ void robot_recv_thread::_try_to_reconnect(){
 
                     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
                     if (-1 == sock_fd){
-                        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"创建套接字失败, 3s 后再次尝试");
+                        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(\
+                            keep_alive_recreate_socket_failed)]);
                         break;
                     }
                     else
@@ -2333,22 +2469,24 @@ void robot_recv_thread::_try_to_reconnect(){
                         int res1 = connect(sock_fd, (struct sockaddr *)&tcp_client1, sizeof(tcp_client1));
                         if (res1)
                         {
-                            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),\
-                                    "发起重新连接失败,程序退出! 3s 后再次尝试");
+                            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(\
+                                keep_alive_reconnect_failed)]);
                             shutdown(sock_fd, SHUT_RDWR);
                             close(sock_fd);
                             break;
                         }
                         else
                         {
-                            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"TCP重新连接成功");
+                            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(\
+                                keep_alive_reconnect_success)]);
                             // 设置TCP接收超时
                             int flags2 = fcntl(sock_fd, F_GETFL, 0);
                             fcntl(sock_fd, F_SETFL, flags2 | SOCK_NONBLOCK);
 
                             // 开启并设置keepalive
                             if (0 != setKeepAlive(sock_fd, 5, 3, 3)){
-                                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"开启tcp心跳检测失败");
+                                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(\
+                                    keep_alive_failed)]);
                             }
                             // return sock_fd;
                             _socketfd1 = sock_fd;
@@ -2380,7 +2518,7 @@ robot_recv_thread::~robot_recv_thread(){
     _robot_recv_exit = 1;
     if(_reconnect_thread.joinable()){
         _reconnect_thread.join();
-        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"重连线程退出");
+        RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(keep_alive_exit)]);
     }
 }
 
@@ -2453,7 +2591,7 @@ void robot_recv_thread::_state_recv_callback(){
             if ((length_read == 0) || ((length_read == -1) && (errno != EINTR )&&\
             (errno != EWOULDBLOCK) && (errno != EAGAIN))){
                 _reconnect_flag.store(true);
-                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"网络可能已经断开，请检查网络连接 ......");
+                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(network_diconnect)]);
                 break;
             }
             if(length_read == 1 && recv_buff[0] == '/'){
@@ -2476,17 +2614,15 @@ void robot_recv_thread::_state_recv_callback(){
         int32_t* ptr_frame_length = (int32_t*)(&recv_buff[7]);
         if(*ptr_frame_length < (_CTRL_STATE_SIZE-14)){//帧长度小于等于预期，直接填装
             std::call_once(oneflag,[&](){
-                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),\
-                    "反馈状态数据帧长度小于预期,差距为%i,请对齐fairino_hardware功能包与机械臂软件版本。",\
-                    _CTRL_STATE_SIZE-14-*ptr_frame_length
+                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(feedback_data_small)]
+                    //_CTRL_STATE_SIZE-14-*ptr_frame_length
                 );
             });
             delta_length = 0;
         }else if(*ptr_frame_length > (_CTRL_STATE_SIZE-14)){//帧长度大于预期，需要削去多余数据，默认削去尾部数据
             std::call_once(oneflag,[&](){
-                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),\
-                    "反馈状态数据帧长度大于预期,差距为%i,请对齐fairino_hardware功能包与机械臂软件版本。",\
-                    *ptr_frame_length - _CTRL_STATE_SIZE+14
+                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(feedback_data_large)]
+                    //*ptr_frame_length - _CTRL_STATE_SIZE+14
                 );
             });
             delta_length = *ptr_frame_length - _CTRL_STATE_SIZE+14;
@@ -2525,7 +2661,7 @@ void robot_recv_thread::_state_recv_callback(){
         if ((length_concatante == 0) || ((length_concatante == -1) && (errno != EINTR )&&\
         (errno != EWOULDBLOCK) && (errno != EAGAIN))){
             _reconnect_flag.store(true);
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"网络可能已经断开，请检查网络连接 ......");
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(network_diconnect)]);
             return;
         }
         if(length_concatante < length_left){
@@ -2550,7 +2686,8 @@ void robot_recv_thread::_state_recv_callback(){
                     ctrl_state_store_buff.emplace(ctrl_state);
                 }
             }else{
-                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"帧数据拼接失败，帧尾数据校验失败，重新寻找帧头,%i,%i",length_concatante,length_left);
+                //RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"帧数据拼接失败，帧尾数据校验失败，重新寻找帧头,%i,%i",length_concatante,length_left);
+                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),msgout[msg_id(search_head_again)]);
                 return;
             }
         }
@@ -2564,7 +2701,8 @@ void robot_recv_thread::_state_recv_callback(){
         auto msg = robot_feedback_msg();
         auto cur_clock = rclcpp::Clock();
 
-        msg.error_code = 0;
+        msg.main_error_code = global_robot_rtstate.main_code;
+        msg.sub_error_code = global_robot_rtstate.sub_code;
         msg.robot_motion_done = ctrl_state.motion_done;
         msg.robot_mode = ctrl_state.robot_mode;
         msg.emg = ctrl_state.btn_box_stop_signal;
