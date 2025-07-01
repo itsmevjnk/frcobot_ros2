@@ -60,7 +60,7 @@ private:
   double _jnt_velocity_state[6];
   double _jnt_torque_state[6];
   int _control_mode;
-  std::string _controller_ip = CONTROLLER_IP_ADDRESS;
+  std::string _controller_ip = CONTROLLER_IP_ADDRESS; // default value, can be overridden if provided in hardware_parameters
   std::unique_ptr<FRRobot> _ptr_robot;
 };
 

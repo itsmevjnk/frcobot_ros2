@@ -61,6 +61,7 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
     this->declare_parameter<float>("Spline_acc",0);
     this->declare_parameter<float>("Spline_ovl",100);
     this->declare_parameter<float>("NewSpline_blendR",10);
+    this->declare_parameter<std::string>("controller_ip", CONTROLLER_IP);
     /*********************************************************************************************/
 
     /***********************************创建字符串指令服务器*****************************************/
@@ -74,7 +75,8 @@ robot_command_thread::robot_command_thread(const std::string node_name):rclcpp::
     /*********************************************************************************************/
 
     /********************************尝试使用SDK库连接机械臂******************************************/
-    _controller_ip = CONTROLLER_IP;//控制器默认ip地址
+    _controller_ip = this->get_parameter("controller_ip").as_string();//控制器默认ip地址
+    RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME), "controller IP address: %s", _controller_ip.c_str());
 
     //打印输出版本信息及其他前置信息
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"ROS2指令服务器创建成功,准备连接机械臂");

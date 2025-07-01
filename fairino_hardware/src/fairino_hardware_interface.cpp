@@ -7,6 +7,10 @@ hardware_interface::CallbackReturn FairinoHardwareInterface::on_init(const hardw
         return hardware_interface::CallbackReturn::ERROR;
     }
     info_ = sysinfo;//info_是父类中定义的变量
+
+    if (auto search = info_.hardware_parameters.find("controller_ip"); search != info_.hardware_parameters.end())
+        _controller_ip = search->second; // overridden controller IP
+    RCLCPP_INFO(rclcpp::get_logger("FairinoHardwareInterface"), "Controller IP address: %s", _controller_ip.c_str());
     
     for (const hardware_interface::ComponentInfo& joint : info_.joints) {
 
